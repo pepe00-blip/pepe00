@@ -1272,4 +1272,5 @@ export function useAdmin() {
   return context;
 }
 
+// Exportar el contexto correctamente
 export { AdminContext };
