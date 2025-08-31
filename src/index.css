@@ -71,10 +71,6 @@
     to { width: 0%; }
   }
   
-  .animate-shrink {
-    animation: shrink 3s linear forwards;
-  }
-  
   /* Animaciones para efectos visuales modernos */
   @keyframes blob {
     0% {
@@ -111,5 +107,25 @@
   
   .animate-in {
     animation: fade-in 0.3s ease-out;
+  }
+  
+  /* Optimizaciones de rendimiento */
+  .will-change-transform {
+    will-change: transform;
+  }
+  
+  .will-change-opacity {
+    will-change: opacity;
+  }
+  
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  /* Optimización de imágenes */
+  img {
+    image-rendering: optimizeQuality;
+    image-rendering: -webkit-optimize-contrast;
   }
 }
