@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import JSZip from 'jszip';
 
-// Interfaces
+// Types
 export interface PriceConfig {
   moviePrice: number;
   seriesPrice: number;
@@ -13,7 +13,6 @@ export interface DeliveryZone {
   id: number;
   name: string;
   cost: number;
-  active: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,19 +24,24 @@ export interface Novel {
   capitulos: number;
   año: number;
   descripcion?: string;
-  active: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface Notification {
   id: string;
-  type: 'success' | 'warning' | 'error' | 'info';
+  type: 'success' | 'error' | 'warning' | 'info';
   title: string;
   message: string;
   timestamp: string;
   section: string;
   action: string;
+}
+
+export interface SyncStatus {
+  lastSync: string;
+  isOnline: boolean;
+  pendingChanges: number;
 }
 
 export interface AdminState {
@@ -46,16 +50,10 @@ export interface AdminState {
   deliveryZones: DeliveryZone[];
   novels: Novel[];
   notifications: Notification[];
-  lastBackup: string | null;
-  syncStatus: {
-    isOnline: boolean;
-    lastSync: string | null;
-    pendingChanges: number;
-  };
+  syncStatus: SyncStatus;
 }
 
-// Actions
-type AdminAction =
+type AdminAction = 
   | { type: 'LOGIN'; payload: { username: string; password: string } }
   | { type: 'LOGOUT' }
   | { type: 'UPDATE_PRICES'; payload: PriceConfig }
@@ -67,10 +65,9 @@ type AdminAction =
   | { type: 'DELETE_NOVEL'; payload: number }
   | { type: 'ADD_NOTIFICATION'; payload: Omit<Notification, 'id' | 'timestamp'> }
   | { type: 'CLEAR_NOTIFICATIONS' }
-  | { type: 'UPDATE_SYNC_STATUS'; payload: Partial<AdminState['syncStatus']> }
+  | { type: 'UPDATE_SYNC_STATUS'; payload: Partial<SyncStatus> }
   | { type: 'SYNC_STATE'; payload: Partial<AdminState> };
 
-// Context
 interface AdminContextType {
   state: AdminState;
   login: (username: string, password: string) => boolean;
@@ -84,170 +81,28 @@ interface AdminContextType {
   deleteNovel: (id: number) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp'>) => void;
   clearNotifications: () => void;
-  exportSystemBackup: () => void;
+  exportSystemBackup: () => Promise<void>;
   syncWithRemote: () => Promise<void>;
   broadcastChange: (change: any) => void;
 }
 
-// Initial state
 const initialState: AdminState = {
   isAuthenticated: false,
   prices: {
-    moviePrice: 801,
+    moviePrice: 80,
     seriesPrice: 300,
     transferFeePercentage: 10,
     novelPricePerChapter: 5,
   },
-  deliveryZones: [
-    {
-      "name": "123",
-      "cost": 1,
-      "active": true,
-      "id": 1756230281051,
-      "createdAt": "2025-08-26T17:44:41.051Z",
-      "updatedAt": "2025-08-26T17:44:41.051Z"
-    }
-  ],
-  novels: [
-    {
-      "titulo": "1",
-      "genero": "1",
-      "capitulos": 1,
-      "año": 2025,
-      "descripcion": "",
-      "active": true,
-      "id": 1756230290435,
-      "createdAt": "2025-08-26T17:44:50.435Z",
-      "updatedAt": "2025-08-26T17:44:50.435Z"
-    }
-  ],
+  deliveryZones: [],
+  novels: [],
   notifications: [],
-  lastBackup: null,
   syncStatus: {
+    lastSync: new Date().toISOString(),
     isOnline: true,
-    lastSync: null,
     pendingChanges: 0,
   },
 };
-
-// Reducer
-function adminReducer(state: AdminState, action: AdminAction): AdminState {
-  switch (action.type) {
-    case 'LOGIN':
-      if (action.payload.username === 'admin' && action.payload.password === 'admin123') {
-        return { ...state, isAuthenticated: true };
-      }
-      return state;
-
-    case 'LOGOUT':
-      return { ...state, isAuthenticated: false };
-
-    case 'UPDATE_PRICES':
-      return {
-        ...state,
-        prices: action.payload,
-        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-      };
-
-    case 'ADD_DELIVERY_ZONE':
-      const newZone: DeliveryZone = {
-        ...action.payload,
-        id: Date.now(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      return {
-        ...state,
-        deliveryZones: [...state.deliveryZones, newZone],
-        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-      };
-
-    case 'UPDATE_DELIVERY_ZONE':
-      return {
-        ...state,
-        deliveryZones: state.deliveryZones.map(zone =>
-          zone.id === action.payload.id
-            ? { ...action.payload, updatedAt: new Date().toISOString() }
-            : zone
-        ),
-        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-      };
-
-    case 'DELETE_DELIVERY_ZONE':
-      return {
-        ...state,
-        deliveryZones: state.deliveryZones.filter(zone => zone.id !== action.payload),
-        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-      };
-
-    case 'ADD_NOVEL':
-      const newNovel: Novel = {
-        ...action.payload,
-        id: Date.now(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      return {
-        ...state,
-        novels: [...state.novels, newNovel],
-        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-      };
-
-    case 'UPDATE_NOVEL':
-      return {
-        ...state,
-        novels: state.novels.map(novel =>
-          novel.id === action.payload.id
-            ? { ...action.payload, updatedAt: new Date().toISOString() }
-            : novel
-        ),
-        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-      };
-
-    case 'DELETE_NOVEL':
-      return {
-        ...state,
-        novels: state.novels.filter(novel => novel.id !== action.payload),
-        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-      };
-
-    case 'ADD_NOTIFICATION':
-      const notification: Notification = {
-        ...action.payload,
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString(),
-      };
-      return {
-        ...state,
-        notifications: [notification, ...state.notifications].slice(0, 100), // Keep only last 100
-      };
-
-    case 'CLEAR_NOTIFICATIONS':
-      return {
-        ...state,
-        notifications: [],
-      };
-
-    case 'UPDATE_SYNC_STATUS':
-      return {
-        ...state,
-        syncStatus: { ...state.syncStatus, ...action.payload },
-      };
-
-    case 'SYNC_STATE':
-      return {
-        ...state,
-        ...action.payload,
-        syncStatus: { ...state.syncStatus, lastSync: new Date().toISOString(), pendingChanges: 0 }
-      };
-
-    default:
-      return state;
-  }
-}
-
-// Context creation
-const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
 // Real-time sync service
 class RealTimeSyncService {
@@ -260,15 +115,10 @@ class RealTimeSyncService {
   }
 
   private initializeSync() {
-    // Listen for storage changes (cross-tab sync)
     window.addEventListener('storage', this.handleStorageChange.bind(this));
-    
-    // Periodic sync every 5 seconds
     this.syncInterval = setInterval(() => {
       this.checkForUpdates();
     }, 5000);
-
-    // Sync on visibility change
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
         this.checkForUpdates();
@@ -311,8 +161,6 @@ class RealTimeSyncService {
         timestamp: new Date().toISOString(),
       };
       localStorage.setItem(this.storageKey, JSON.stringify(syncData));
-      
-      // Notify all listeners
       this.notifyListeners(syncData);
     } catch (error) {
       console.error('Error broadcasting state:', error);
@@ -337,372 +185,6 @@ class RealTimeSyncService {
     this.listeners.clear();
   }
 }
-
-// Provider component
-export function AdminProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(adminReducer, initialState);
-  const [syncService] = React.useState(() => new RealTimeSyncService());
-
-  // Load initial state from localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('admin_system_state');
-      if (stored) {
-        const storedState = JSON.parse(stored);
-        dispatch({ type: 'SYNC_STATE', payload: storedState });
-      }
-    } catch (error) {
-      console.error('Error loading initial state:', error);
-    }
-  }, []);
-
-  // Save state to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem('admin_system_state', JSON.stringify(state));
-      syncService.broadcast(state);
-    } catch (error) {
-      console.error('Error saving state:', error);
-    }
-  }, [state, syncService]);
-
-  // Subscribe to real-time updates
-  useEffect(() => {
-    const unsubscribe = syncService.subscribe((syncedState) => {
-      // Only sync if the state is different
-      if (JSON.stringify(syncedState) !== JSON.stringify(state)) {
-        dispatch({ type: 'SYNC_STATE', payload: syncedState });
-      }
-    });
-
-    return unsubscribe;
-  }, [syncService, state]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      syncService.destroy();
-    };
-  }, [syncService]);
-
-  // Context methods
-  const login = (username: string, password: string): boolean => {
-    dispatch({ type: 'LOGIN', payload: { username, password } });
-    const success = username === 'admin' && password === 'admin123';
-    if (success) {
-      addNotification({
-        type: 'success',
-        title: 'Inicio de sesión exitoso',
-        message: 'Bienvenido al panel de administración',
-        section: 'Autenticación',
-        action: 'login'
-      });
-    }
-    return success;
-  };
-
-  const logout = () => {
-    dispatch({ type: 'LOGOUT' });
-    addNotification({
-      type: 'info',
-      title: 'Sesión cerrada',
-      message: 'Has cerrado sesión correctamente',
-      section: 'Autenticación',
-      action: 'logout'
-    });
-  };
-
-  const updatePrices = (prices: PriceConfig) => {
-    dispatch({ type: 'UPDATE_PRICES', payload: prices });
-    addNotification({
-      type: 'success',
-      title: 'Precios actualizados exitosamente',
-      message: `Precios actualizados: Películas $${prices.moviePrice} CUP, Series $${prices.seriesPrice} CUP/temporada, Transferencia ${prices.transferFeePercentage}%, Novelas $${prices.novelPricePerChapter} CUP/capítulo. Los cambios se han aplicado automáticamente en CheckoutModal.tsx, NovelasModal.tsx, PriceCard.tsx y CartContext.tsx`,
-      section: 'Gestión de Precios',
-      action: 'update'
-    });
-    broadcastChange({ type: 'prices', data: prices });
-  };
-
-  const addDeliveryZone = (zone: Omit<DeliveryZone, 'id' | 'createdAt' | 'updatedAt'>) => {
-    dispatch({ type: 'ADD_DELIVERY_ZONE', payload: zone });
-    addNotification({
-      type: 'success',
-      title: 'Zona de entrega agregada exitosamente',
-      message: `Nueva zona de entrega agregada: "${zone.name}" con costo de $${zone.cost} CUP. La zona está ahora disponible automáticamente en CheckoutModal.tsx para todos los nuevos pedidos`,
-      section: 'Zonas de Entrega',
-      action: 'create'
-    });
-    broadcastChange({ type: 'delivery_zone_add', data: zone });
-  };
-
-  const updateDeliveryZone = (zone: DeliveryZone) => {
-    dispatch({ type: 'UPDATE_DELIVERY_ZONE', payload: zone });
-    addNotification({
-      type: 'success',
-      title: 'Zona de entrega actualizada exitosamente',
-      message: `Zona de entrega actualizada: "${zone.name}" ahora tiene un costo de $${zone.cost} CUP. Los cambios se han aplicado automáticamente en CheckoutModal.tsx y están disponibles para nuevos pedidos`,
-      section: 'Zonas de Entrega',
-      action: 'update'
-    });
-    broadcastChange({ type: 'delivery_zone_update', data: zone });
-  };
-
-  const deleteDeliveryZone = (id: number) => {
-    const zone = state.deliveryZones.find(z => z.id === id);
-    dispatch({ type: 'DELETE_DELIVERY_ZONE', payload: id });
-    addNotification({
-      type: 'warning',
-      title: 'Zona de entrega eliminada',
-      message: `Zona de entrega eliminada: "${zone?.name || 'Desconocida'}". La zona ha sido removida automáticamente de CheckoutModal.tsx y ya no está disponible para nuevos pedidos`,
-      section: 'Zonas de Entrega',
-      action: 'delete'
-    });
-    broadcastChange({ type: 'delivery_zone_delete', data: { id } });
-  };
-
-  const addNovel = (novel: Omit<Novel, 'id' | 'createdAt' | 'updatedAt'>) => {
-    dispatch({ type: 'ADD_NOVEL', payload: novel });
-    const novelCost = novel.capitulos * state.prices.novelPricePerChapter;
-    addNotification({
-      type: 'success',
-      title: 'Novela agregada exitosamente',
-      message: `Nueva novela agregada al catálogo: "${novel.titulo}" (${novel.año}) - Género: ${novel.genero}, ${novel.capitulos} capítulos. Costo calculado: $${novelCost.toLocaleString()} CUP. La novela está ahora disponible automáticamente en NovelasModal.tsx`,
-      section: 'Gestión de Novelas',
-      action: 'create'
-    });
-    broadcastChange({ type: 'novel_add', data: novel });
-  };
-
-  const updateNovel = (novel: Novel) => {
-    dispatch({ type: 'UPDATE_NOVEL', payload: novel });
-    const novelCost = novel.capitulos * state.prices.novelPricePerChapter;
-    addNotification({
-      type: 'success',
-      title: 'Novela actualizada exitosamente',
-      message: `Novela actualizada: "${novel.titulo}" - Género: ${novel.genero}, ${novel.capitulos} capítulos (${novel.año}). Nuevo costo calculado: $${novelCost.toLocaleString()} CUP. Los cambios se han aplicado automáticamente en NovelasModal.tsx`,
-      section: 'Gestión de Novelas',
-      action: 'update'
-    });
-    broadcastChange({ type: 'novel_update', data: novel });
-  };
-
-  const deleteNovel = (id: number) => {
-    const novel = state.novels.find(n => n.id === id);
-    dispatch({ type: 'DELETE_NOVEL', payload: id });
-    addNotification({
-      type: 'warning',
-      title: 'Novela eliminada del catálogo',
-      message: `Novela eliminada: "${novel?.titulo || 'Desconocida'}" (${novel?.capitulos || 0} capítulos, ${novel?.año || 'N/A'}). La novela ha sido removida automáticamente del catálogo en NovelasModal.tsx`,
-      section: 'Gestión de Novelas',
-      action: 'delete'
-    });
-    broadcastChange({ type: 'novel_delete', data: { id } });
-  };
-
-  const addNotification = (notification: Omit<Notification, 'id' | 'timestamp'>) => {
-    dispatch({ type: 'ADD_NOTIFICATION', payload: notification });
-  };
-
-  const clearNotifications = () => {
-    dispatch({ type: 'CLEAR_NOTIFICATIONS' });
-    addNotification({
-      type: 'info',
-      title: 'Notificaciones limpiadas',
-      message: 'Se han eliminado todas las notificaciones del sistema',
-      section: 'Notificaciones',
-      action: 'clear'
-    });
-  };
-
-  const broadcastChange = (change: any) => {
-    // Broadcast change to all connected clients
-    const changeEvent = {
-      ...change,
-      timestamp: new Date().toISOString(),
-      source: 'admin_panel'
-    };
-    
-    // Update sync status
-    dispatch({ 
-      type: 'UPDATE_SYNC_STATUS', 
-      payload: { 
-        lastSync: new Date().toISOString(),
-        pendingChanges: Math.max(0, state.syncStatus.pendingChanges - 1)
-      } 
-    });
-
-    // Emit custom event for real-time updates
-    window.dispatchEvent(new CustomEvent('admin_state_change', { 
-      detail: changeEvent 
-    }));
-  };
-
-  const syncWithRemote = async (): Promise<void> => {
-    try {
-      dispatch({ type: 'UPDATE_SYNC_STATUS', payload: { isOnline: true } });
-      
-      // Simulate remote sync
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      dispatch({ 
-        type: 'UPDATE_SYNC_STATUS', 
-        payload: { 
-          lastSync: new Date().toISOString(),
-          pendingChanges: 0
-        } 
-      });
-
-      addNotification({
-        type: 'success',
-        title: 'Sincronización completada exitosamente',
-        message: 'Todos los datos del sistema se han sincronizado correctamente. Los cambios están disponibles en tiempo real en toda la aplicación',
-        section: 'Sistema',
-        action: 'sync'
-      });
-    } catch (error) {
-      dispatch({ type: 'UPDATE_SYNC_STATUS', payload: { isOnline: false } });
-      addNotification({
-        type: 'error',
-        title: 'Error de sincronización',
-        message: 'No se pudo sincronizar con el servidor remoto. Verifique la conexión e intente nuevamente',
-        section: 'Sistema',
-        action: 'sync_error'
-      });
-    }
-  };
-
-  const exportSystemBackup = async () => {
-    try {
-      addNotification({
-        type: 'info',
-        title: 'Iniciando exportación del sistema',
-        message: 'Preparando la exportación completa del código fuente con todas las configuraciones actuales...',
-        section: 'Sistema',
-        action: 'export_start'
-      });
-
-      const zip = new JSZip();
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      
-      // Crear estructura de carpetas completa
-      const srcFolder = zip.folder('src');
-      const componentsFolder = srcFolder!.folder('components');
-      const contextFolder = srcFolder!.folder('context');
-      const pagesFolder = srcFolder!.folder('pages');
-      const servicesFolder = srcFolder!.folder('services');
-      const utilsFolder = srcFolder!.folder('utils');
-      const hooksFolder = srcFolder!.folder('hooks');
-      const typesFolder = srcFolder!.folder('types');
-      const configFolder = srcFolder!.folder('config');
-      const publicFolder = zip.folder('public');
-
-      // Generar AdminContext.tsx con estado actual sincronizado
-      const adminContextContent = `import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import JSZip from 'jszip';
-
-// Interfaces
-export interface PriceConfig {
-  moviePrice: number;
-  seriesPrice: number;
-  transferFeePercentage: number;
-  novelPricePerChapter: number;
-}
-
-export interface DeliveryZone {
-  id: number;
-  name: string;
-  cost: number;
-  active: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Novel {
-  id: number;
-  titulo: string;
-  genero: string;
-  capitulos: number;
-  año: number;
-  descripcion?: string;
-  active: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Notification {
-  id: string;
-  type: 'success' | 'warning' | 'error' | 'info';
-  title: string;
-  message: string;
-  timestamp: string;
-  section: string;
-  action: string;
-}
-
-export interface AdminState {
-  isAuthenticated: boolean;
-  prices: PriceConfig;
-  deliveryZones: DeliveryZone[];
-  novels: Novel[];
-  notifications: Notification[];
-  lastBackup: string | null;
-  syncStatus: {
-    isOnline: boolean;
-    lastSync: string | null;
-    pendingChanges: number;
-  };
-}
-
-// Actions
-type AdminAction =
-  | { type: 'LOGIN'; payload: { username: string; password: string } }
-  | { type: 'LOGOUT' }
-  | { type: 'UPDATE_PRICES'; payload: PriceConfig }
-  | { type: 'ADD_DELIVERY_ZONE'; payload: Omit<DeliveryZone, 'id' | 'createdAt' | 'updatedAt'> }
-  | { type: 'UPDATE_DELIVERY_ZONE'; payload: DeliveryZone }
-  | { type: 'DELETE_DELIVERY_ZONE'; payload: number }
-  | { type: 'ADD_NOVEL'; payload: Omit<Novel, 'id' | 'createdAt' | 'updatedAt'> }
-  | { type: 'UPDATE_NOVEL'; payload: Novel }
-  | { type: 'DELETE_NOVEL'; payload: number }
-  | { type: 'ADD_NOTIFICATION'; payload: Omit<Notification, 'id' | 'timestamp'> }
-  | { type: 'CLEAR_NOTIFICATIONS' }
-  | { type: 'UPDATE_SYNC_STATUS'; payload: Partial<AdminState['syncStatus']> }
-  | { type: 'SYNC_STATE'; payload: Partial<AdminState> };
-
-// Context
-interface AdminContextType {
-  state: AdminState;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
-  updatePrices: (prices: PriceConfig) => void;
-  addDeliveryZone: (zone: Omit<DeliveryZone, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateDeliveryZone: (zone: DeliveryZone) => void;
-  deleteDeliveryZone: (id: number) => void;
-  addNovel: (novel: Omit<Novel, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateNovel: (novel: Novel) => void;
-  deleteNovel: (id: number) => void;
-  addNotification: (notification: Omit<Notification, 'id' | 'timestamp'>) => void;
-  clearNotifications: () => void;
-  exportSystemBackup: () => void;
-  syncWithRemote: () => Promise<void>;
-  broadcastChange: (change: any) => void;
-}
-
-// Initial state with current synchronized data
-const initialState: AdminState = {
-  isAuthenticated: false,
-  prices: ${JSON.stringify(state.prices, null, 4)},
-  deliveryZones: ${JSON.stringify(state.deliveryZones, null, 4)},
-  novels: ${JSON.stringify(state.novels, null, 4)},
-  notifications: [],
-  lastBackup: null,
-  syncStatus: {
-    isOnline: true,
-    lastSync: null,
-    pendingChanges: 0,
-  },
-};
 
 // Reducer
 function adminReducer(state: AdminState, action: AdminAction): AdminState {
@@ -820,8 +302,322 @@ function adminReducer(state: AdminState, action: AdminAction): AdminState {
   }
 }
 
-// Context creation
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
+
+export function AdminProvider({ children }: { children: React.ReactNode }) {
+  const [state, dispatch] = useReducer(adminReducer, initialState);
+  const [syncService] = React.useState(() => new RealTimeSyncService());
+
+  // Load initial state from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('admin_system_state');
+      if (stored) {
+        const storedState = JSON.parse(stored);
+        dispatch({ type: 'SYNC_STATE', payload: storedState });
+      }
+    } catch (error) {
+      console.error('Error loading initial state:', error);
+    }
+  }, []);
+
+  // Save state to localStorage on changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('admin_system_state', JSON.stringify(state));
+      syncService.broadcast(state);
+    } catch (error) {
+      console.error('Error saving state:', error);
+    }
+  }, [state, syncService]);
+
+  // Subscribe to real-time updates
+  useEffect(() => {
+    const unsubscribe = syncService.subscribe((syncedState) => {
+      if (JSON.stringify(syncedState) !== JSON.stringify(state)) {
+        dispatch({ type: 'SYNC_STATE', payload: syncedState });
+      }
+    });
+    return unsubscribe;
+  }, [syncService, state]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      syncService.destroy();
+    };
+  }, [syncService]);
+
+  // Context methods
+  const login = (username: string, password: string): boolean => {
+    dispatch({ type: 'LOGIN', payload: { username, password } });
+    const success = username === 'admin' && password === 'admin123';
+    if (success) {
+      addNotification({
+        type: 'success',
+        title: 'Inicio de sesión exitoso',
+        message: 'Bienvenido al panel de administración',
+        section: 'Autenticación',
+        action: 'login'
+      });
+    }
+    return success;
+  };
+
+  const logout = () => {
+    dispatch({ type: 'LOGOUT' });
+    addNotification({
+      type: 'info',
+      title: 'Sesión cerrada',
+      message: 'Has cerrado sesión correctamente',
+      section: 'Autenticación',
+      action: 'logout'
+    });
+  };
+
+  const updatePrices = (prices: PriceConfig) => {
+    dispatch({ type: 'UPDATE_PRICES', payload: prices });
+    addNotification({
+      type: 'success',
+      title: 'Precios actualizados',
+      message: 'Los precios se han actualizado correctamente y se han sincronizado en tiempo real',
+      section: 'Precios',
+      action: 'update'
+    });
+    broadcastChange({ type: 'prices', data: prices });
+  };
+
+  const addDeliveryZone = (zone: Omit<DeliveryZone, 'id' | 'createdAt' | 'updatedAt'>) => {
+    dispatch({ type: 'ADD_DELIVERY_ZONE', payload: zone });
+    addNotification({
+      type: 'success',
+      title: 'Zona de entrega agregada',
+      message: `Se agregó la zona "${zone.name}" y se sincronizó automáticamente`,
+      section: 'Zonas de Entrega',
+      action: 'create'
+    });
+    broadcastChange({ type: 'delivery_zone_add', data: zone });
+  };
+
+  const updateDeliveryZone = (zone: DeliveryZone) => {
+    dispatch({ type: 'UPDATE_DELIVERY_ZONE', payload: zone });
+    addNotification({
+      type: 'success',
+      title: 'Zona de entrega actualizada',
+      message: `Se actualizó la zona "${zone.name}" y se sincronizó en tiempo real`,
+      section: 'Zonas de Entrega',
+      action: 'update'
+    });
+    broadcastChange({ type: 'delivery_zone_update', data: zone });
+  };
+
+  const deleteDeliveryZone = (id: number) => {
+    const zone = state.deliveryZones.find(z => z.id === id);
+    dispatch({ type: 'DELETE_DELIVERY_ZONE', payload: id });
+    addNotification({
+      type: 'warning',
+      title: 'Zona de entrega eliminada',
+      message: `Se eliminó la zona "${zone?.name || 'Desconocida'}" y se sincronizó automáticamente`,
+      section: 'Zonas de Entrega',
+      action: 'delete'
+    });
+    broadcastChange({ type: 'delivery_zone_delete', data: { id } });
+  };
+
+  const addNovel = (novel: Omit<Novel, 'id' | 'createdAt' | 'updatedAt'>) => {
+    dispatch({ type: 'ADD_NOVEL', payload: novel });
+    addNotification({
+      type: 'success',
+      title: 'Novela agregada',
+      message: `Se agregó la novela "${novel.titulo}" y se sincronizó automáticamente`,
+      section: 'Gestión de Novelas',
+      action: 'create'
+    });
+    broadcastChange({ type: 'novel_add', data: novel });
+  };
+
+  const updateNovel = (novel: Novel) => {
+    dispatch({ type: 'UPDATE_NOVEL', payload: novel });
+    addNotification({
+      type: 'success',
+      title: 'Novela actualizada',
+      message: `Se actualizó la novela "${novel.titulo}" y se sincronizó en tiempo real`,
+      section: 'Gestión de Novelas',
+      action: 'update'
+    });
+    broadcastChange({ type: 'novel_update', data: novel });
+  };
+
+  const deleteNovel = (id: number) => {
+    const novel = state.novels.find(n => n.id === id);
+    dispatch({ type: 'DELETE_NOVEL', payload: id });
+    addNotification({
+      type: 'warning',
+      title: 'Novela eliminada',
+      message: `Se eliminó la novela "${novel?.titulo || 'Desconocida'}" y se sincronizó automáticamente`,
+      section: 'Gestión de Novelas',
+      action: 'delete'
+    });
+    broadcastChange({ type: 'novel_delete', data: { id } });
+  };
+
+  const addNotification = (notification: Omit<Notification, 'id' | 'timestamp'>) => {
+    dispatch({ type: 'ADD_NOTIFICATION', payload: notification });
+  };
+
+  const clearNotifications = () => {
+    dispatch({ type: 'CLEAR_NOTIFICATIONS' });
+    addNotification({
+      type: 'info',
+      title: 'Notificaciones limpiadas',
+      message: 'Se han eliminado todas las notificaciones del sistema',
+      section: 'Notificaciones',
+      action: 'clear'
+    });
+  };
+
+  const broadcastChange = (change: any) => {
+    const changeEvent = {
+      ...change,
+      timestamp: new Date().toISOString(),
+      source: 'admin_panel'
+    };
+    
+    dispatch({ 
+      type: 'UPDATE_SYNC_STATUS', 
+      payload: { 
+        lastSync: new Date().toISOString(),
+        pendingChanges: Math.max(0, state.syncStatus.pendingChanges - 1)
+      } 
+    });
+
+    window.dispatchEvent(new CustomEvent('admin_state_change', { 
+      detail: changeEvent 
+    }));
+  };
+
+  const syncWithRemote = async (): Promise<void> => {
+    try {
+      dispatch({ type: 'UPDATE_SYNC_STATUS', payload: { isOnline: true } });
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      dispatch({ 
+        type: 'UPDATE_SYNC_STATUS', 
+        payload: { 
+          lastSync: new Date().toISOString(),
+          pendingChanges: 0
+        } 
+      });
+      addNotification({
+        type: 'success',
+        title: 'Sincronización completada',
+        message: 'Todos los datos se han sincronizado correctamente con el sistema',
+        section: 'Sistema',
+        action: 'sync'
+      });
+    } catch (error) {
+      dispatch({ type: 'UPDATE_SYNC_STATUS', payload: { isOnline: false } });
+      addNotification({
+        type: 'error',
+        title: 'Error de sincronización',
+        message: 'No se pudo sincronizar con el servidor remoto',
+        section: 'Sistema',
+        action: 'sync_error'
+      });
+    }
+  };
+
+  // Generate AdminContext.tsx file content with current state
+  const generateAdminContextFile = (): string => {
+    return `import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import JSZip from 'jszip';
+
+// Types
+export interface PriceConfig {
+  moviePrice: number;
+  seriesPrice: number;
+  transferFeePercentage: number;
+  novelPricePerChapter: number;
+}
+
+export interface DeliveryZone {
+  id: number;
+  name: string;
+  cost: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Novel {
+  id: number;
+  titulo: string;
+  genero: string;
+  capitulos: number;
+  año: number;
+  descripcion?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Notification {
+  id: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  message: string;
+  timestamp: string;
+  section: string;
+  action: string;
+}
+
+export interface SyncStatus {
+  lastSync: string;
+  isOnline: boolean;
+  pendingChanges: number;
+}
+
+export interface AdminState {
+  isAuthenticated: boolean;
+  prices: PriceConfig;
+  deliveryZones: DeliveryZone[];
+  novels: Novel[];
+  notifications: Notification[];
+  syncStatus: SyncStatus;
+}
+
+type AdminAction = 
+  | { type: 'LOGIN'; payload: { username: string; password: string } }
+  | { type: 'LOGOUT' }
+  | { type: 'UPDATE_PRICES'; payload: PriceConfig }
+  | { type: 'ADD_DELIVERY_ZONE'; payload: Omit<DeliveryZone, 'id' | 'createdAt' | 'updatedAt'> }
+  | { type: 'UPDATE_DELIVERY_ZONE'; payload: DeliveryZone }
+  | { type: 'DELETE_DELIVERY_ZONE'; payload: number }
+  | { type: 'ADD_NOVEL'; payload: Omit<Novel, 'id' | 'createdAt' | 'updatedAt'> }
+  | { type: 'UPDATE_NOVEL'; payload: Novel }
+  | { type: 'DELETE_NOVEL'; payload: number }
+  | { type: 'ADD_NOTIFICATION'; payload: Omit<Notification, 'id' | 'timestamp'> }
+  | { type: 'CLEAR_NOTIFICATIONS' }
+  | { type: 'UPDATE_SYNC_STATUS'; payload: Partial<SyncStatus> }
+  | { type: 'SYNC_STATE'; payload: Partial<AdminState> };
+
+interface AdminContextType {
+  state: AdminState;
+  login: (username: string, password: string) => boolean;
+  logout: () => void;
+  updatePrices: (prices: PriceConfig) => void;
+  addDeliveryZone: (zone: Omit<DeliveryZone, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateDeliveryZone: (zone: DeliveryZone) => void;
+  deleteDeliveryZone: (id: number) => void;
+  addNovel: (novel: Omit<Novel, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateNovel: (novel: Novel) => void;
+  deleteNovel: (id: number) => void;
+  addNotification: (notification: Omit<Notification, 'id' | 'timestamp'>) => void;
+  clearNotifications: () => void;
+  exportSystemBackup: () => Promise<void>;
+  syncWithRemote: () => Promise<void>;
+  broadcastChange: (change: any) => void;
+}
+
+// Estado inicial con configuración actual
+const initialState: AdminState = ${JSON.stringify(state, null, 2)};
 
 // Real-time sync service
 class RealTimeSyncService {
@@ -905,11 +701,129 @@ class RealTimeSyncService {
   }
 }
 
-// Provider component
+// Reducer implementation
+function adminReducer(state: AdminState, action: AdminAction): AdminState {
+  switch (action.type) {
+    case 'LOGIN':
+      if (action.payload.username === 'admin' && action.payload.password === 'admin123') {
+        return { ...state, isAuthenticated: true };
+      }
+      return state;
+
+    case 'LOGOUT':
+      return { ...state, isAuthenticated: false };
+
+    case 'UPDATE_PRICES':
+      return {
+        ...state,
+        prices: action.payload,
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
+
+    case 'ADD_DELIVERY_ZONE':
+      const newZone: DeliveryZone = {
+        ...action.payload,
+        id: Date.now(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      return {
+        ...state,
+        deliveryZones: [...state.deliveryZones, newZone],
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
+
+    case 'UPDATE_DELIVERY_ZONE':
+      return {
+        ...state,
+        deliveryZones: state.deliveryZones.map(zone =>
+          zone.id === action.payload.id
+            ? { ...action.payload, updatedAt: new Date().toISOString() }
+            : zone
+        ),
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
+
+    case 'DELETE_DELIVERY_ZONE':
+      return {
+        ...state,
+        deliveryZones: state.deliveryZones.filter(zone => zone.id !== action.payload),
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
+
+    case 'ADD_NOVEL':
+      const newNovel: Novel = {
+        ...action.payload,
+        id: Date.now(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      return {
+        ...state,
+        novels: [...state.novels, newNovel],
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
+
+    case 'UPDATE_NOVEL':
+      return {
+        ...state,
+        novels: state.novels.map(novel =>
+          novel.id === action.payload.id
+            ? { ...action.payload, updatedAt: new Date().toISOString() }
+            : novel
+        ),
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
+
+    case 'DELETE_NOVEL':
+      return {
+        ...state,
+        novels: state.novels.filter(novel => novel.id !== action.payload),
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
+
+    case 'ADD_NOTIFICATION':
+      const notification: Notification = {
+        ...action.payload,
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+      };
+      return {
+        ...state,
+        notifications: [notification, ...state.notifications].slice(0, 100),
+      };
+
+    case 'CLEAR_NOTIFICATIONS':
+      return {
+        ...state,
+        notifications: [],
+      };
+
+    case 'UPDATE_SYNC_STATUS':
+      return {
+        ...state,
+        syncStatus: { ...state.syncStatus, ...action.payload },
+      };
+
+    case 'SYNC_STATE':
+      return {
+        ...state,
+        ...action.payload,
+        syncStatus: { ...state.syncStatus, lastSync: new Date().toISOString(), pendingChanges: 0 }
+      };
+
+    default:
+      return state;
+  }
+}
+
+const AdminContext = createContext<AdminContextType | undefined>(undefined);
+
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(adminReducer, initialState);
   const [syncService] = React.useState(() => new RealTimeSyncService());
 
+  // Load initial state from localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem('admin_system_state');
@@ -922,6 +836,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Save state to localStorage on changes
   useEffect(() => {
     try {
       localStorage.setItem('admin_system_state', JSON.stringify(state));
@@ -931,6 +846,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state, syncService]);
 
+  // Subscribe to real-time updates
   useEffect(() => {
     const unsubscribe = syncService.subscribe((syncedState) => {
       if (JSON.stringify(syncedState) !== JSON.stringify(state)) {
@@ -940,11 +856,194 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, [syncService, state]);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       syncService.destroy();
     };
   }, [syncService]);
+
+  // Context methods implementation
+  const login = (username: string, password: string): boolean => {
+    dispatch({ type: 'LOGIN', payload: { username, password } });
+    const success = username === 'admin' && password === 'admin123';
+    if (success) {
+      addNotification({
+        type: 'success',
+        title: 'Inicio de sesión exitoso',
+        message: 'Bienvenido al panel de administración',
+        section: 'Autenticación',
+        action: 'login'
+      });
+    }
+    return success;
+  };
+
+  const logout = () => {
+    dispatch({ type: 'LOGOUT' });
+    addNotification({
+      type: 'info',
+      title: 'Sesión cerrada',
+      message: 'Has cerrado sesión correctamente',
+      section: 'Autenticación',
+      action: 'logout'
+    });
+  };
+
+  const updatePrices = (prices: PriceConfig) => {
+    dispatch({ type: 'UPDATE_PRICES', payload: prices });
+    addNotification({
+      type: 'success',
+      title: 'Precios actualizados',
+      message: 'Los precios se han actualizado correctamente y se han sincronizado en tiempo real',
+      section: 'Precios',
+      action: 'update'
+    });
+    broadcastChange({ type: 'prices', data: prices });
+  };
+
+  const addDeliveryZone = (zone: Omit<DeliveryZone, 'id' | 'createdAt' | 'updatedAt'>) => {
+    dispatch({ type: 'ADD_DELIVERY_ZONE', payload: zone });
+    addNotification({
+      type: 'success',
+      title: 'Zona de entrega agregada',
+      message: \`Se agregó la zona "\${zone.name}" y se sincronizó automáticamente\`,
+      section: 'Zonas de Entrega',
+      action: 'create'
+    });
+    broadcastChange({ type: 'delivery_zone_add', data: zone });
+  };
+
+  const updateDeliveryZone = (zone: DeliveryZone) => {
+    dispatch({ type: 'UPDATE_DELIVERY_ZONE', payload: zone });
+    addNotification({
+      type: 'success',
+      title: 'Zona de entrega actualizada',
+      message: \`Se actualizó la zona "\${zone.name}" y se sincronizó en tiempo real\`,
+      section: 'Zonas de Entrega',
+      action: 'update'
+    });
+    broadcastChange({ type: 'delivery_zone_update', data: zone });
+  };
+
+  const deleteDeliveryZone = (id: number) => {
+    const zone = state.deliveryZones.find(z => z.id === id);
+    dispatch({ type: 'DELETE_DELIVERY_ZONE', payload: id });
+    addNotification({
+      type: 'warning',
+      title: 'Zona de entrega eliminada',
+      message: \`Se eliminó la zona "\${zone?.name || 'Desconocida'}" y se sincronizó automáticamente\`,
+      section: 'Zonas de Entrega',
+      action: 'delete'
+    });
+    broadcastChange({ type: 'delivery_zone_delete', data: { id } });
+  };
+
+  const addNovel = (novel: Omit<Novel, 'id' | 'createdAt' | 'updatedAt'>) => {
+    dispatch({ type: 'ADD_NOVEL', payload: novel });
+    addNotification({
+      type: 'success',
+      title: 'Novela agregada',
+      message: \`Se agregó la novela "\${novel.titulo}" y se sincronizó automáticamente\`,
+      section: 'Gestión de Novelas',
+      action: 'create'
+    });
+    broadcastChange({ type: 'novel_add', data: novel });
+  };
+
+  const updateNovel = (novel: Novel) => {
+    dispatch({ type: 'UPDATE_NOVEL', payload: novel });
+    addNotification({
+      type: 'success',
+      title: 'Novela actualizada',
+      message: \`Se actualizó la novela "\${novel.titulo}" y se sincronizó en tiempo real\`,
+      section: 'Gestión de Novelas',
+      action: 'update'
+    });
+    broadcastChange({ type: 'novel_update', data: novel });
+  };
+
+  const deleteNovel = (id: number) => {
+    const novel = state.novels.find(n => n.id === id);
+    dispatch({ type: 'DELETE_NOVEL', payload: id });
+    addNotification({
+      type: 'warning',
+      title: 'Novela eliminada',
+      message: \`Se eliminó la novela "\${novel?.titulo || 'Desconocida'}" y se sincronizó automáticamente\`,
+      section: 'Gestión de Novelas',
+      action: 'delete'
+    });
+    broadcastChange({ type: 'novel_delete', data: { id } });
+  };
+
+  const addNotification = (notification: Omit<Notification, 'id' | 'timestamp'>) => {
+    dispatch({ type: 'ADD_NOTIFICATION', payload: notification });
+  };
+
+  const clearNotifications = () => {
+    dispatch({ type: 'CLEAR_NOTIFICATIONS' });
+    addNotification({
+      type: 'info',
+      title: 'Notificaciones limpiadas',
+      message: 'Se han eliminado todas las notificaciones del sistema',
+      section: 'Notificaciones',
+      action: 'clear'
+    });
+  };
+
+  const broadcastChange = (change: any) => {
+    const changeEvent = {
+      ...change,
+      timestamp: new Date().toISOString(),
+      source: 'admin_panel'
+    };
+    
+    dispatch({ 
+      type: 'UPDATE_SYNC_STATUS', 
+      payload: { 
+        lastSync: new Date().toISOString(),
+        pendingChanges: Math.max(0, state.syncStatus.pendingChanges - 1)
+      } 
+    });
+
+    window.dispatchEvent(new CustomEvent('admin_state_change', { 
+      detail: changeEvent 
+    }));
+  };
+
+  const syncWithRemote = async (): Promise<void> => {
+    try {
+      dispatch({ type: 'UPDATE_SYNC_STATUS', payload: { isOnline: true } });
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      dispatch({ 
+        type: 'UPDATE_SYNC_STATUS', 
+        payload: { 
+          lastSync: new Date().toISOString(),
+          pendingChanges: 0
+        } 
+      });
+      addNotification({
+        type: 'success',
+        title: 'Sincronización completada',
+        message: 'Todos los datos se han sincronizado correctamente con el sistema',
+        section: 'Sistema',
+        action: 'sync'
+      });
+    } catch (error) {
+      dispatch({ type: 'UPDATE_SYNC_STATUS', payload: { isOnline: false } });
+      addNotification({
+        type: 'error',
+        title: 'Error de sincronización',
+        message: 'No se pudo sincronizar con el servidor remoto',
+        section: 'Sistema',
+        action: 'sync_error'
+      });
+    }
+  };
+
+  const exportSystemBackup = async (): Promise<void> => {
+    // Implementation will be added here
+  };
 
   return (
     <AdminContext.Provider
@@ -980,9 +1079,11 @@ export function useAdmin() {
 }
 
 export { AdminContext };`;
+  };
 
-      // Generar CheckoutModal.tsx con zonas de entrega actualizadas
-      const checkoutModalContent = `import React, { useState } from 'react';
+  // Generate CheckoutModal.tsx file content with current admin state
+  const generateCheckoutModalFile = (): string => {
+    return `import React, { useState } from 'react';
 import { X, User, MapPin, Phone, Copy, Check, MessageCircle, Calculator, DollarSign, CreditCard } from 'lucide-react';
 import { AdminContext } from '../context/AdminContext';
 
@@ -1013,7 +1114,7 @@ interface CheckoutModalProps {
   total: number;
 }
 
-// Base delivery zones - synchronized with admin panel
+// Base delivery zones - these will be combined with admin zones
 const BASE_DELIVERY_ZONES = {
   'Por favor seleccionar su Barrio/Zona': 0,
   'Santiago de Cuba > Santiago de Cuba > Nuevo Vista Alegre': 100,
@@ -1037,7 +1138,7 @@ const BASE_DELIVERY_ZONES = {
   'Santiago de Cuba > Santiago de Cuba > Distrito José Martí': 100,
   'Santiago de Cuba > Santiago de Cuba > Cobre': 800,
   'Santiago de Cuba > Santiago de Cuba > El Parque Céspedes': 200,
-  'Santiago de Cuba > Santiago de Cuba > Carretera del Morro': 300,${state.deliveryZones.map(zone => `\n  '${zone.name}': ${zone.cost},`).join('')}
+  'Santiago de Cuba > Santiago de Cuba > Carretera del Morro': 300,
 };
 
 export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: CheckoutModalProps) {
@@ -1054,7 +1155,7 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
   const [generatedOrder, setGeneratedOrder] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // Get delivery zones from admin context with real-time updates
+  // Get delivery zones from admin context with real-time updates - CURRENT STATE: ${JSON.stringify(state.deliveryZones)}
   const adminZones = adminContext?.state?.deliveryZones || [];
   const adminZonesMap = adminZones.reduce((acc, zone) => {
     acc[zone.name] = zone.cost;
@@ -1066,8 +1167,8 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
   const deliveryCost = allZones[deliveryZone as keyof typeof allZones] || 0;
   const finalTotal = total + deliveryCost;
 
-  // Get current transfer fee percentage with real-time updates
-  const transferFeePercentage = adminContext?.state?.prices?.transferFeePercentage || 10;
+  // Get current transfer fee percentage with real-time updates - CURRENT VALUE: ${state.prices.transferFeePercentage}%
+  const transferFeePercentage = adminContext?.state?.prices?.transferFeePercentage || ${state.prices.transferFeePercentage};
 
   const isFormValid = customerInfo.fullName.trim() !== '' && 
                      customerInfo.phone.trim() !== '' && 
@@ -1092,8 +1193,9 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
     const cashItems = items.filter(item => item.paymentType === 'cash');
     const transferItems = items.filter(item => item.paymentType === 'transfer');
     
-    const moviePrice = adminContext?.state?.prices?.moviePrice || 80;
-    const seriesPrice = adminContext?.state?.prices?.seriesPrice || 300;
+    // Get current prices with real-time updates - CURRENT PRICES: Movies $${state.prices.moviePrice}, Series $${state.prices.seriesPrice}
+    const moviePrice = adminContext?.state?.prices?.moviePrice || ${state.prices.moviePrice};
+    const seriesPrice = adminContext?.state?.prices?.seriesPrice || ${state.prices.seriesPrice};
     
     const cashTotal = cashItems.reduce((sum, item) => {
       const basePrice = item.type === 'movie' ? moviePrice : (item.selectedSeasons?.length || 1) * seriesPrice;
@@ -1108,470 +1210,448 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
     return { cashTotal, transferTotal };
   };
 
-  // [Resto de la implementación del CheckoutModal con toda la funcionalidad actual]
-  
+  const generateOrderText = () => {
+    const orderId = generateOrderId();
+    const { cashTotal, transferTotal } = calculateTotals();
+    const transferFee = transferTotal - items.filter(item => item.paymentType === 'transfer').reduce((sum, item) => {
+      const moviePrice = adminContext?.state?.prices?.moviePrice || ${state.prices.moviePrice};
+      const seriesPrice = adminContext?.state?.prices?.seriesPrice || ${state.prices.seriesPrice};
+      const basePrice = item.type === 'movie' ? moviePrice : (item.selectedSeasons?.length || 1) * seriesPrice;
+      return sum + basePrice;
+    }, 0);
+
+    // Format product list with real-time pricing
+    const itemsList = items
+      .map(item => {
+        const seasonInfo = item.selectedSeasons && item.selectedSeasons.length > 0 
+          ? \`\\n  📺 Temporadas: \${item.selectedSeasons.sort((a, b) => a - b).join(', ')}\` 
+          : '';
+        const itemType = item.type === 'movie' ? 'Película' : 'Serie';
+        const moviePrice = adminContext?.state?.prices?.moviePrice || ${state.prices.moviePrice};
+        const seriesPrice = adminContext?.state?.prices?.seriesPrice || ${state.prices.seriesPrice};
+        const basePrice = item.type === 'movie' ? moviePrice : (item.selectedSeasons?.length || 1) * seriesPrice;
+        const finalPrice = item.paymentType === 'transfer' ? Math.round(basePrice * (1 + transferFeePercentage / 100)) : basePrice;
+        const paymentTypeText = item.paymentType === 'transfer' ? \`Transferencia (+\${transferFeePercentage}%)\` : 'Efectivo';
+        const emoji = item.type === 'movie' ? '🎬' : '📺';
+        return \`\${emoji} *\${item.title}*\${seasonInfo}\\n  📋 Tipo: \${itemType}\\n  💳 Pago: \${paymentTypeText}\\n  💰 Precio: $\${finalPrice.toLocaleString()} CUP\`;
+      })
+      .join('\\n\\n');
+
+    let orderText = \`🎬 *PEDIDO - TV A LA CARTA*\\n\\n\`;
+    orderText += \`📋 *ID de Orden:* \${orderId}\\n\\n\`;
+    
+    orderText += \`👤 *DATOS DEL CLIENTE:*\\n\`;
+    orderText += \`• Nombre: \${customerInfo.fullName}\\n\`;
+    orderText += \`• Teléfono: \${customerInfo.phone}\\n\`;
+    orderText += \`• Dirección: \${customerInfo.address}\\n\\n\`;
+    
+    orderText += \`🎯 *PRODUCTOS SOLICITADOS:*\\n\${itemsList}\\n\\n\`;
+    
+    orderText += \`💰 *RESUMEN DE COSTOS:*\\n\`;
+    
+    if (cashTotal > 0) {
+      orderText += \`💵 Efectivo: $\${cashTotal.toLocaleString()} CUP\\n\`;
+    }
+    if (transferTotal > 0) {
+      orderText += \`🏦 Transferencia: $\${transferTotal.toLocaleString()} CUP\\n\`;
+    }
+    orderText += \`• *Subtotal Contenido: $\${total.toLocaleString()} CUP*\\n\`;
+    
+    if (transferFee > 0) {
+      orderText += \`• Recargo transferencia (\${transferFeePercentage}%): +$\${transferFee.toLocaleString()} CUP\\n\`;
+    }
+    
+    orderText += \`🚚 Entrega (\${deliveryZone.split(' > ')[2]}): +$\${deliveryCost.toLocaleString()} CUP\\n\`;
+    orderText += \`\\n🎯 *TOTAL FINAL: $\${finalTotal.toLocaleString()} CUP*\\n\\n\`;
+    
+    orderText += \`📍 *ZONA DE ENTREGA:*\\n\`;
+    orderText += \`\${deliveryZone.replace(' > ', ' → ')}\\n\`;
+    orderText += \`💰 Costo de entrega: $\${deliveryCost.toLocaleString()} CUP\\n\\n\`;
+    
+    orderText += \`⏰ *Fecha:* \${new Date().toLocaleString('es-ES')}\\n\`;
+    orderText += \`🌟 *¡Gracias por elegir TV a la Carta!*\`;
+
+    return { orderText, orderId };
+  };
+
+  const handleGenerateOrder = () => {
+    if (!isFormValid) {
+      alert('Por favor complete todos los campos requeridos antes de generar la orden.');
+      return;
+    }
+    
+    const { orderText } = generateOrderText();
+    setGeneratedOrder(orderText);
+    setOrderGenerated(true);
+  };
+
+  const handleCopyOrder = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedOrder);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Error copying to clipboard:', err);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (deliveryZone === 'Por favor seleccionar su Barrio/Zona') {
+      alert('Por favor selecciona un barrio específico para la entrega.');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const { orderId } = generateOrderText();
+      const { cashTotal, transferTotal } = calculateTotals();
+      const transferFee = transferTotal - items.filter(item => item.paymentType === 'transfer').reduce((sum, item) => {
+        const moviePrice = adminContext?.state?.prices?.moviePrice || ${state.prices.moviePrice};
+        const seriesPrice = adminContext?.state?.prices?.seriesPrice || ${state.prices.seriesPrice};
+        const basePrice = item.type === 'movie' ? moviePrice : (item.selectedSeasons?.length || 1) * seriesPrice;
+        return sum + basePrice;
+      }, 0);
+
+      const orderData: OrderData = {
+        orderId,
+        customerInfo,
+        deliveryZone,
+        deliveryCost,
+        items,
+        subtotal: total,
+        transferFee,
+        total: finalTotal,
+        cashTotal,
+        transferTotal
+      };
+
+      await onCheckout(orderData);
+    } catch (error) {
+      console.error('Checkout failed:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
       <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden shadow-2xl">
-        {/* Implementación completa del modal con todas las funcionalidades actuales */}
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4 sm:p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="bg-white/20 p-2 rounded-lg mr-3">
+                <MessageCircle className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold">Finalizar Pedido</h2>
+                <p className="text-sm opacity-90">Complete sus datos para procesar el pedido</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-full transition-colors"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto max-h-[calc(95vh-120px)]">
+          <div className="p-4 sm:p-6">
+            {/* Order Summary */}
+            <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 sm:p-6 mb-6 border border-blue-200">
+              <div className="flex items-center mb-4">
+                <Calculator className="h-6 w-6 text-blue-600 mr-3" />
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Resumen del Pedido</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div className="bg-white rounded-xl p-4 border border-gray-200">
+                  <div className="text-center">
+                    <div className="text-2xl sm:text-3xl font-bold text-blue-600 mb-2">
+                      $\{total.toLocaleString()} CUP
+                    </div>
+                    <div className="text-sm text-gray-600">Subtotal Contenido</div>
+                    <div className="text-xs text-gray-500 mt-1">\{items.length} elementos</div>
+                  </div>
+                </div>
+                
+                <div className="bg-white rounded-xl p-4 border border-gray-200">
+                  <div className="text-center">
+                    <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">
+                      $\{deliveryCost.toLocaleString()} CUP
+                    </div>
+                    <div className="text-sm text-gray-600">Costo de Entrega</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      \{deliveryZone.split(' > ')[2] || 'Seleccionar zona'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-green-100 to-blue-100 rounded-xl p-4 border-2 border-green-300">
+                <div className="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
+                  <span className="text-lg sm:text-xl font-bold text-gray-900">Total Final:</span>
+                  <span className="text-2xl sm:text-3xl font-bold text-green-600">
+                    $\{finalTotal.toLocaleString()} CUP
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {!orderGenerated ? (
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Customer Information */}
+                <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-sm">
+                  <h3 className="text-lg sm:text-xl font-bold mb-4 flex items-center text-gray-900">
+                    <User className="h-5 w-5 mr-3 text-blue-600" />
+                    Información Personal
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Nombre Completo *
+                      </label>
+                      <input
+                        type="text"
+                        name="fullName"
+                        value={customerInfo.fullName}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="Ingrese su nombre completo"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Teléfono *
+                      </label>
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={customerInfo.phone}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="+53 5XXXXXXX"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Dirección Completa *
+                      </label>
+                      <input
+                        type="text"
+                        name="address"
+                        value={customerInfo.address}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="Calle, número, entre calles..."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Delivery Zone */}
+                <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-sm">
+                  <h3 className="text-lg sm:text-xl font-bold mb-4 flex items-center text-gray-900">
+                    <MapPin className="h-5 w-5 mr-3 text-green-600" />
+                    Zona de Entrega
+                  </h3>
+                  
+                  <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-4 mb-4 border border-green-200">
+                    <div className="flex items-center mb-2">
+                      <div className="bg-green-100 p-2 rounded-lg mr-3">
+                        <span className="text-sm">📍</span>
+                      </div>
+                      <h4 className="font-semibold text-green-900">Información de Entrega</h4>
+                    </div>
+                    <p className="text-sm text-green-700 ml-11">
+                      Seleccione su zona para calcular el costo de entrega. Los precios pueden variar según la distancia.
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Seleccionar Barrio/Zona *
+                    </label>
+                    <select
+                      value={deliveryZone}
+                      onChange={(e) => setDeliveryZone(e.target.value)}
+                      required
+                      className={\`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all bg-white \${
+                        deliveryZone === 'Por favor seleccionar su Barrio/Zona'
+                          ? 'border-orange-300 focus:ring-orange-500 bg-orange-50'
+                          : 'border-gray-300 focus:ring-green-500'
+                      }\`}
+                    >
+                      {Object.entries(allZones).map(([zone, cost]) => (
+                        <option key={zone} value={zone}>
+                          {zone === 'Por favor seleccionar su Barrio/Zona' 
+                            ? zone 
+                            : \`\${zone.split(' > ')[2]} \${cost > 0 ? \`- $\${cost.toLocaleString()} CUP\` : ''}\`
+                          }
+                        </option>
+                      ))}
+                    </select>
+                    
+                    {deliveryZone === 'Por favor seleccionar su Barrio/Zona' && (
+                      <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                        <div className="flex items-center">
+                          <span className="text-orange-600 mr-2">⚠️</span>
+                          <span className="text-sm font-medium text-orange-700">
+                            Por favor seleccione su zona de entrega para continuar
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {deliveryCost > 0 && (
+                      <div className="mt-3 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center">
+                            <div className="bg-green-100 p-2 rounded-lg mr-3">
+                              <span className="text-sm">🚚</span>
+                            </div>
+                            <span className="text-sm font-semibold text-green-800">
+                              Costo de entrega confirmado:
+                            </span>
+                          </div>
+                          <div className="bg-white rounded-lg px-3 py-2 border border-green-300">
+                            <span className="text-lg font-bold text-green-600">
+                              $\{deliveryCost.toLocaleString()} CUP
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-xs text-green-600 ml-11">
+                          ✅ Zona: \{deliveryZone.split(' > ')[2]}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGenerateOrder}
+                    disabled={!isFormValid || deliveryZone === 'Por favor seleccionar su Barrio/Zona'}
+                    className={\`flex-1 px-6 py-4 rounded-xl transition-all font-medium \${
+                      isFormValid && deliveryZone !== 'Por favor seleccionar su Barrio/Zona'
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }\`}
+                  >
+                    Generar Orden
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isProcessing || !isFormValid || deliveryZone === 'Por favor seleccionar su Barrio/Zona'}
+                    className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all font-medium flex items-center justify-center"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        Procesando...
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="h-5 w-5 mr-2" />
+                        Enviar por WhatsApp
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* Generated Order Display */
+              <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 space-y-2 sm:space-y-0">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center">
+                    <Check className="h-6 w-6 text-green-600 mr-3" />
+                    Orden Generada
+                  </h3>
+                  <button
+                    onClick={handleCopyOrder}
+                    className={\`px-4 py-2 rounded-xl font-medium transition-all flex items-center justify-center \${
+                      copied
+                        ? 'bg-green-100 text-green-700 border border-green-300'
+                        : 'bg-blue-100 text-blue-700 border border-blue-300 hover:bg-blue-200'
+                    }\`}
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        ¡Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copiar Orden
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 max-h-96 overflow-y-auto">
+                  <pre className="text-xs sm:text-sm text-gray-800 whitespace-pre-wrap font-mono leading-relaxed">
+                    {generatedOrder}
+                  </pre>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                  <button
+                    onClick={() => setOrderGenerated(false)}
+                    className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-medium"
+                  >
+                    Volver a Editar
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isProcessing || !isFormValid}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 disabled:opacity-50 text-white rounded-xl transition-all font-medium flex items-center justify-center"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="h-5 w-5 mr-2" />
+                        Enviar por WhatsApp
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 }`;
-
-      // Incluir todos los archivos del sistema con el código fuente completo actual
-      
-      // Archivos de configuración principales
-      zip.file('package.json', JSON.stringify({
-        "name": "tv-a-la-carta-sistema-completo",
-        "private": true,
-        "version": "2.0.0",
-        "type": "module",
-        "description": "Sistema completo de TV a la Carta con panel de administración sincronizado",
-        "scripts": {
-          "dev": "vite",
-          "build": "vite build",
-          "lint": "eslint .",
-          "preview": "vite preview"
-        },
-        "dependencies": {
-          "@types/node": "^24.2.1",
-          "jszip": "^3.10.1",
-          "lucide-react": "^0.344.0",
-          "react": "^18.3.1",
-          "react-dom": "^18.3.1",
-          "react-router-dom": "^7.8.0"
-        },
-        "devDependencies": {
-          "@eslint/js": "^9.9.1",
-          "@types/react": "^18.3.5",
-          "@types/react-dom": "^18.3.0",
-          "@vitejs/plugin-react": "^4.3.1",
-          "autoprefixer": "^10.4.18",
-          "eslint": "^9.9.1",
-          "eslint-plugin-react-hooks": "^5.1.0-rc.0",
-          "eslint-plugin-react-refresh": "^0.4.11",
-          "globals": "^15.9.0",
-          "postcss": "^8.4.35",
-          "tailwindcss": "^3.4.1",
-          "typescript": "^5.5.3",
-          "typescript-eslint": "^8.3.0",
-          "vite": "^5.4.2"
-        }
-      }, null, 2));
-
-      // Archivo principal de la aplicación
-      srcFolder!.file('App.tsx', \`import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { CartProvider } from './context/CartContext';
-import { AdminProvider } from './context/AdminContext';
-import { Header } from './components/Header';
-import { Home } from './pages/Home';
-import { Movies } from './pages/Movies';
-import { TVShows } from './pages/TVShows';
-import { Anime } from './pages/Anime';
-import { SearchPage } from './pages/Search';
-import { MovieDetail } from './pages/MovieDetail';
-import { TVDetail } from './pages/TVDetail';
-import { Cart } from './pages/Cart';
-import { AdminPanel } from './pages/AdminPanel';
-
-function App() {
-  // Detectar refresh y redirigir a la página principal
-  React.useEffect(() => {
-    const handleBeforeUnload = () => {
-      sessionStorage.setItem('pageRefreshed', 'true');
-    };
-
-    const handleLoad = () => {
-      if (sessionStorage.getItem('pageRefreshed') === 'true') {
-        sessionStorage.removeItem('pageRefreshed');
-        if (window.location.pathname !== '/') {
-          window.location.href = 'https://tvalacarta.vercel.app/';
-          return;
-        }
-      }
-    };
-
-    if (sessionStorage.getItem('pageRefreshed') === 'true') {
-      sessionStorage.removeItem('pageRefreshed');
-      if (window.location.pathname !== '/') {
-        window.location.href = 'https://tvalacarta.vercel.app/';
-        return;
-      }
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('load', handleLoad);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('load', handleLoad);
-    };
-  }, []);
-
-  // Deshabilitar zoom con teclado y gestos
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '0')) {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length > 1) {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 1) {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown, { passive: false });
-    document.addEventListener('wheel', handleWheel, { passive: false });
-    document.addEventListener('touchstart', handleTouchStart, { passive: false });
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('wheel', handleWheel);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchstart', handleTouchStart);
-    };
-  }, []);
-
-  return (
-    <AdminProvider>
-      <CartProvider>
-        <Router>
-          <div className="min-h-screen bg-gray-50">
-            <Routes>
-              <Route path="/admin" element={<AdminPanel />} />
-              <Route path="/*" element={
-                <>
-                  <Header />
-                  <main>
-                    <Routes>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/movies" element={<Movies />} />
-                      <Route path="/tv" element={<TVShows />} />
-                      <Route path="/anime" element={<Anime />} />
-                      <Route path="/search" element={<SearchPage />} />
-                      <Route path="/movie/:id" element={<MovieDetail />} />
-                      <Route path="/tv/:id" element={<TVDetail />} />
-                      <Route path="/cart" element={<Cart />} />
-                    </Routes>
-                  </main>
-                </>
-              } />
-            </Routes>
-          </div>
-        </Router>
-      </CartProvider>
-    </AdminProvider>
-  );
-}
-
-export default App;\`);
-
-      // Context files con configuraciones actualizadas
-      contextFolder!.file('AdminContext.tsx', adminContextContent);
-      contextFolder!.file('CartContext.tsx', \`import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { Toast } from '../components/Toast';
-import { AdminContext } from './AdminContext';
-import type { CartItem } from '../types/movie';
-
-interface SeriesCartItem extends CartItem {
-  selectedSeasons?: number[];
-  paymentType?: 'cash' | 'transfer';
-}
-
-interface CartState {
-  items: SeriesCartItem[];
-  total: number;
-}
-
-type CartAction = 
-  | { type: 'ADD_ITEM'; payload: SeriesCartItem }
-  | { type: 'REMOVE_ITEM'; payload: number }
-  | { type: 'UPDATE_SEASONS'; payload: { id: number; seasons: number[] } }
-  | { type: 'UPDATE_PAYMENT_TYPE'; payload: { id: number; paymentType: 'cash' | 'transfer' } }
-  | { type: 'CLEAR_CART' }
-  | { type: 'LOAD_CART'; payload: SeriesCartItem[] };
-
-interface CartContextType {
-  state: CartState;
-  addItem: (item: SeriesCartItem) => void;
-  removeItem: (id: number) => void;
-  updateSeasons: (id: number, seasons: number[]) => void;
-  updatePaymentType: (id: number, paymentType: 'cash' | 'transfer') => void;
-  clearCart: () => void;
-  isInCart: (id: number) => boolean;
-  getItemSeasons: (id: number) => number[];
-  getItemPaymentType: (id: number) => 'cash' | 'transfer';
-  calculateItemPrice: (item: SeriesCartItem) => number;
-  calculateTotalPrice: () => number;
-  calculateTotalByPaymentType: () => { cash: number; transfer: number };
-}
-
-const CartContext = createContext<CartContextType | undefined>(undefined);
-
-function cartReducer(state: CartState, action: CartAction): CartState {
-  switch (action.type) {
-    case 'ADD_ITEM':
-      if (state.items.some(item => item.id === action.payload.id && item.type === action.payload.type)) {
-        return state;
-      }
-      return {
-        ...state,
-        items: [...state.items, action.payload],
-        total: state.total + 1
-      };
-    case 'UPDATE_SEASONS':
-      return {
-        ...state,
-        items: state.items.map(item => 
-          item.id === action.payload.id 
-            ? { ...item, selectedSeasons: action.payload.seasons }
-            : item
-        )
-      };
-    case 'UPDATE_PAYMENT_TYPE':
-      return {
-        ...state,
-        items: state.items.map(item => 
-          item.id === action.payload.id 
-            ? { ...item, paymentType: action.payload.paymentType }
-            : item
-        )
-      };
-    case 'REMOVE_ITEM':
-      return {
-        ...state,
-        items: state.items.filter(item => item.id !== action.payload),
-        total: state.total - 1
-      };
-    case 'CLEAR_CART':
-      return {
-        items: [],
-        total: 0
-      };
-    case 'LOAD_CART':
-      return {
-        items: action.payload,
-        total: action.payload.length
-      };
-    default:
-      return state;
-  }
-}
-
-export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(cartReducer, { items: [], total: 0 });
-  const adminContext = React.useContext(AdminContext);
-  const [toast, setToast] = React.useState<{
-    message: string;
-    type: 'success' | 'error';
-    isVisible: boolean;
-  }>({ message: '', type: 'success', isVisible: false });
-
-  // Clear cart on page refresh
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      sessionStorage.setItem('pageRefreshed', 'true');
-    };
-
-    const handleLoad = () => {
-      if (sessionStorage.getItem('pageRefreshed') === 'true') {
-        localStorage.removeItem('movieCart');
-        dispatch({ type: 'CLEAR_CART' });
-        sessionStorage.removeItem('pageRefreshed');
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('load', handleLoad);
-
-    if (sessionStorage.getItem('pageRefreshed') === 'true') {
-      localStorage.removeItem('movieCart');
-      dispatch({ type: 'CLEAR_CART' });
-      sessionStorage.removeItem('pageRefreshed');
-    }
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('load', handleLoad);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (sessionStorage.getItem('pageRefreshed') !== 'true') {
-      const savedCart = localStorage.getItem('movieCart');
-      if (savedCart) {
-        try {
-          const items = JSON.parse(savedCart);
-          dispatch({ type: 'LOAD_CART', payload: items });
-        } catch (error) {
-          console.error('Error loading cart from localStorage:', error);
-        }
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('movieCart', JSON.stringify(state.items));
-  }, [state.items]);
-
-  const addItem = (item: SeriesCartItem) => {
-    const itemWithDefaults = { 
-      ...item, 
-      paymentType: 'cash' as const,
-      selectedSeasons: item.type === 'tv' && !item.selectedSeasons ? [1] : item.selectedSeasons
-    };
-    dispatch({ type: 'ADD_ITEM', payload: itemWithDefaults });
-    
-    setToast({
-      message: \`"\${item.title}" agregado al carrito\`,
-      type: 'success',
-      isVisible: true
-    });
   };
 
-  const removeItem = (id: number) => {
-    const item = state.items.find(item => item.id === id);
-    dispatch({ type: 'REMOVE_ITEM', payload: id });
-    
-    if (item) {
-      setToast({
-        message: \`"\${item.title}" retirado del carrito\`,
-        type: 'error',
-        isVisible: true
-      });
-    }
-  };
-
-  const updateSeasons = (id: number, seasons: number[]) => {
-    dispatch({ type: 'UPDATE_SEASONS', payload: { id, seasons } });
-  };
-
-  const updatePaymentType = (id: number, paymentType: 'cash' | 'transfer') => {
-    dispatch({ type: 'UPDATE_PAYMENT_TYPE', payload: { id, paymentType } });
-  };
-
-  const clearCart = () => {
-    dispatch({ type: 'CLEAR_CART' });
-  };
-
-  const isInCart = (id: number) => {
-    return state.items.some(item => item.id === id);
-  };
-
-  const getItemSeasons = (id: number): number[] => {
-    const item = state.items.find(item => item.id === id);
-    return item?.selectedSeasons || [];
-  };
-
-  const getItemPaymentType = (id: number): 'cash' | 'transfer' => {
-    const item = state.items.find(item => item.id === id);
-    return item?.paymentType || 'cash';
-  };
-
-  const calculateItemPrice = (item: SeriesCartItem): number => {
-    // Get current prices from admin context with real-time updates
-    const moviePrice = adminContext?.state?.prices?.moviePrice || ${state.prices.moviePrice};
-    const seriesPrice = adminContext?.state?.prices?.seriesPrice || ${state.prices.seriesPrice};
-    const transferFeePercentage = adminContext?.state?.prices?.transferFeePercentage || ${state.prices.transferFeePercentage};
-    
-    if (item.type === 'movie') {
-      const basePrice = moviePrice;
-      return item.paymentType === 'transfer' ? Math.round(basePrice * (1 + transferFeePercentage / 100)) : basePrice;
-    } else {
-      const seasons = item.selectedSeasons?.length || 1;
-      const basePrice = seasons * seriesPrice;
-      return item.paymentType === 'transfer' ? Math.round(basePrice * (1 + transferFeePercentage / 100)) : basePrice;
-    }
-  };
-
-  const calculateTotalPrice = (): number => {
-    return state.items.reduce((total, item) => {
-      return total + calculateItemPrice(item);
-    }, 0);
-  };
-
-  const calculateTotalByPaymentType = (): { cash: number; transfer: number } => {
-    const moviePrice = adminContext?.state?.prices?.moviePrice || ${state.prices.moviePrice};
-    const seriesPrice = adminContext?.state?.prices?.seriesPrice || ${state.prices.seriesPrice};
-    const transferFeePercentage = adminContext?.state?.prices?.transferFeePercentage || ${state.prices.transferFeePercentage};
-    
-    return state.items.reduce((totals, item) => {
-      const basePrice = item.type === 'movie' ? moviePrice : (item.selectedSeasons?.length || 1) * seriesPrice;
-      if (item.paymentType === 'transfer') {
-        totals.transfer += Math.round(basePrice * (1 + transferFeePercentage / 100));
-      } else {
-        totals.cash += basePrice;
-      }
-      return totals;
-    }, { cash: 0, transfer: 0 });
-  };
-
-  const closeToast = () => {
-    setToast(prev => ({ ...prev, isVisible: false }));
-  };
-
-  return (
-    <CartContext.Provider value={{ 
-      state, 
-      addItem, 
-      removeItem, 
-      updateSeasons, 
-      updatePaymentType,
-      clearCart, 
-      isInCart, 
-      getItemSeasons,
-      getItemPaymentType,
-      calculateItemPrice,
-      calculateTotalPrice,
-      calculateTotalByPaymentType
-    }}>
-      {children}
-      <Toast
-        message={toast.message}
-        type={toast.type}
-        isVisible={toast.isVisible}
-        onClose={closeToast}
-      />
-    </CartContext.Provider>
-  );
-}
-
-export function useCart() {
-  const context = useContext(CartContext);
-  if (context === undefined) {
-    throw new Error('useCart must be used within a CartProvider');
-  }
-  return context;
-}\`);
-
-      // Componentes con código fuente completo actual
-      componentsFolder!.file('CheckoutModal.tsx', checkoutModalContent);
-      
-      // NovelasModal con novelas actualizadas
-      componentsFolder!.file('NovelasModal.tsx', \`import React, { useState, useEffect } from 'react';
+  // Generate NovelasModal.tsx file content with current admin state
+  const generateNovelasModalFile = (): string => {
+    return `import React, { useState, useEffect } from 'react';
 import { X, Download, MessageCircle, Phone, BookOpen, Info, Check, DollarSign, CreditCard, Calculator, Search, Filter, SortAsc, SortDesc } from 'lucide-react';
 import { AdminContext } from '../context/AdminContext';
 
@@ -1601,12 +1681,12 @@ export function NovelasModal({ isOpen, onClose }: NovelasModalProps) {
   const [sortBy, setSortBy] = useState<'titulo' | 'año' | 'capitulos'>('titulo');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Get novels and prices from admin context with real-time updates
+  // Get novels and prices from admin context with real-time updates - CURRENT STATE
   const adminNovels = adminContext?.state?.novels || [];
   const novelPricePerChapter = adminContext?.state?.prices?.novelPricePerChapter || ${state.prices.novelPricePerChapter};
   const transferFeePercentage = adminContext?.state?.prices?.transferFeePercentage || ${state.prices.transferFeePercentage};
   
-  // Base novels list with current admin novels synchronized
+  // Base novels list
   const defaultNovelas: Novela[] = [
     { id: 1, titulo: "Corazón Salvaje", genero: "Drama/Romance", capitulos: 185, año: 2009 },
     { id: 2, titulo: "La Usurpadora", genero: "Drama/Melodrama", capitulos: 98, año: 1998 },
@@ -1657,10 +1737,10 @@ export function NovelasModal({ isOpen, onClose }: NovelasModalProps) {
     { id: 47, titulo: "La Desalmada", genero: "Drama/Romance", capitulos: 96, año: 2021 },
     { id: 48, titulo: "Si Nos Dejan", genero: "Drama/Romance", capitulos: 93, año: 2021 },
     { id: 49, titulo: "Vencer el Pasado", genero: "Drama/Familia", capitulos: 91, año: 2021 },
-    { id: 50, titulo: "La Herencia", genero: "Drama/Romance", capitulos: 74, año: 2022 }${state.novels.map(novel => `,\n    { id: ${novel.id}, titulo: "${novel.titulo}", genero: "${novel.genero}", capitulos: ${novel.capitulos}, año: ${novel.año}${novel.descripcion ? `, descripcion: "${novel.descripcion}"` : ''} }`).join('')}
+    { id: 50, titulo: "La Herencia", genero: "Drama/Romance", capitulos: 74, año: 2022 }
   ];
 
-  // Combine admin novels with default novels - real-time sync
+  // Combine admin novels with default novels - real-time sync - CURRENT ADMIN NOVELS: ${JSON.stringify(state.novels)}
   const allNovelas = [...defaultNovelas, ...adminNovels.map(novel => ({
     id: novel.id,
     titulo: novel.titulo,
@@ -1670,598 +1750,801 @@ export function NovelasModal({ isOpen, onClose }: NovelasModalProps) {
     descripcion: novel.descripcion
   }))];
 
-  // [Resto de la implementación completa del NovelasModal]
+  const phoneNumber = '+5354690878';
+
+  // Get unique genres
+  const uniqueGenres = [...new Set(allNovelas.map(novela => novela.genero))].sort();
   
+  // Get unique years
+  const uniqueYears = [...new Set(allNovelas.map(novela => novela.año))].sort((a, b) => b - a);
+
+  // Filter novels function
+  const getFilteredNovelas = () => {
+    let filtered = novelasWithPayment.filter(novela => {
+      const matchesSearch = novela.titulo.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesGenre = selectedGenre === '' || novela.genero === selectedGenre;
+      const matchesYear = selectedYear === '' || novela.año.toString() === selectedYear;
+      
+      return matchesSearch && matchesGenre && matchesYear;
+    });
+
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'titulo':
+          comparison = a.titulo.localeCompare(b.titulo);
+          break;
+        case 'año':
+          comparison = a.año - b.año;
+          break;
+        case 'capitulos':
+          comparison = a.capitulos - b.capitulos;
+          break;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
+  };
+
+  const filteredNovelas = getFilteredNovelas();
+
+  // Initialize novels with default payment type
+  useEffect(() => {
+    const novelasWithDefaultPayment = allNovelas.map(novela => ({
+      ...novela,
+      paymentType: 'cash' as const
+    }));
+    setNovelasWithPayment(novelasWithDefaultPayment);
+  }, [adminNovels.length]);
+
+  const handleNovelToggle = (novelaId: number) => {
+    setSelectedNovelas(prev => {
+      if (prev.includes(novelaId)) {
+        return prev.filter(id => id !== novelaId);
+      } else {
+        return [...prev, novelaId];
+      }
+    });
+  };
+
+  const handlePaymentTypeChange = (novelaId: number, paymentType: 'cash' | 'transfer') => {
+    setNovelasWithPayment(prev => 
+      prev.map(novela => 
+        novela.id === novelaId 
+          ? { ...novela, paymentType }
+          : novela
+      )
+    );
+  };
+
+  const selectAllNovelas = () => {
+    setSelectedNovelas(allNovelas.map(n => n.id));
+  };
+
+  const clearAllNovelas = () => {
+    setSelectedNovelas([]);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedGenre('');
+    setSelectedYear('');
+    setSortBy('titulo');
+    setSortOrder('asc');
+  };
+
+  // Calculate totals by payment type with real-time pricing
+  const calculateTotals = () => {
+    const selectedNovelasData = novelasWithPayment.filter(n => selectedNovelas.includes(n.id));
+    
+    const cashNovelas = selectedNovelasData.filter(n => n.paymentType === 'cash');
+    const transferNovelas = selectedNovelasData.filter(n => n.paymentType === 'transfer');
+    
+    const cashTotal = cashNovelas.reduce((sum, n) => sum + (n.capitulos * novelPricePerChapter), 0);
+    const transferBaseTotal = transferNovelas.reduce((sum, n) => sum + (n.capitulos * novelPricePerChapter), 0);
+    const transferFee = Math.round(transferBaseTotal * (transferFeePercentage / 100));
+    const transferTotal = transferBaseTotal + transferFee;
+    
+    const grandTotal = cashTotal + transferTotal;
+    
+    return {
+      cashNovelas,
+      transferNovelas,
+      cashTotal,
+      transferBaseTotal,
+      transferFee,
+      transferTotal,
+      grandTotal,
+      totalCapitulos: selectedNovelasData.reduce((sum, n) => sum + n.capitulos, 0)
+    };
+  };
+
+  const totals = calculateTotals();
+
+  const generateNovelListText = () => {
+    let listText = "📚 CATÁLOGO DE NOVELAS DISPONIBLES\\n";
+    listText += "TV a la Carta - Novelas Completas\\n\\n";
+    listText += \`💰 Precio: $\${novelPricePerChapter} CUP por capítulo\\n\`;
+    listText += \`💳 Recargo transferencia: \${transferFeePercentage}%\\n\`;
+    listText += "📱 Contacto: +5354690878\\n\\n";
+    listText += "═══════════════════════════════════\\n\\n";
+    
+    listText += "💵 PRECIOS EN EFECTIVO:\\n";
+    listText += "═══════════════════════════════════\\n\\n";
+    
+    allNovelas.forEach((novela, index) => {
+      const baseCost = novela.capitulos * novelPricePerChapter;
+      listText += \`\${index + 1}. \${novela.titulo}\\n\`;
+      listText += \`   📺 Género: \${novela.genero}\\n\`;
+      listText += \`   📊 Capítulos: \${novela.capitulos}\\n\`;
+      listText += \`   📅 Año: \${novela.año}\\n\`;
+      listText += \`   💰 Costo en efectivo: \${baseCost.toLocaleString()} CUP\\n\\n\`;
+    });
+    
+    listText += \`\\n🏦 PRECIOS CON TRANSFERENCIA BANCARIA (+\${transferFeePercentage}%):\\n\`;
+    listText += "═══════════════════════════════════\\n\\n";
+    
+    allNovelas.forEach((novela, index) => {
+      const baseCost = novela.capitulos * novelPricePerChapter;
+      const transferCost = Math.round(baseCost * (1 + transferFeePercentage / 100));
+      const recargo = transferCost - baseCost;
+      listText += \`\${index + 1}. \${novela.titulo}\\n\`;
+      listText += \`   📺 Género: \${novela.genero}\\n\`;
+      listText += \`   📊 Capítulos: \${novela.capitulos}\\n\`;
+      listText += \`   📅 Año: \${novela.año}\\n\`;
+      listText += \`   💰 Costo base: \${baseCost.toLocaleString()} CUP\\n\`;
+      listText += \`   💳 Recargo (\${transferFeePercentage}%): +\${recargo.toLocaleString()} CUP\\n\`;
+      listText += \`   💰 Costo con transferencia: \${transferCost.toLocaleString()} CUP\\n\\n\`;
+    });
+    
+    listText += "\\n📊 RESUMEN DE COSTOS:\\n";
+    listText += "═══════════════════════════════════\\n\\n";
+    
+    const totalCapitulos = allNovelas.reduce((sum, novela) => sum + novela.capitulos, 0);
+    const totalEfectivo = allNovelas.reduce((sum, novela) => sum + (novela.capitulos * novelPricePerChapter), 0);
+    const totalTransferencia = allNovelas.reduce((sum, novela) => sum + Math.round((novela.capitulos * novelPricePerChapter) * (1 + transferFeePercentage / 100)), 0);
+    const totalRecargo = totalTransferencia - totalEfectivo;
+    
+    listText += \`📊 Total de novelas: \${allNovelas.length}\\n\`;
+    listText += \`📊 Total de capítulos: \${totalCapitulos.toLocaleString()}\\n\\n\`;
+    listText += \`💵 CATÁLOGO COMPLETO EN EFECTIVO:\\n\`;
+    listText += \`   💰 Costo total: \${totalEfectivo.toLocaleString()} CUP\\n\\n\`;
+    listText += \`🏦 CATÁLOGO COMPLETO CON TRANSFERENCIA:\\n\`;
+    listText += \`   💰 Costo base: \${totalEfectivo.toLocaleString()} CUP\\n\`;
+    listText += \`   💳 Recargo total (\${transferFeePercentage}%): +\${totalRecargo.toLocaleString()} CUP\\n\`;
+    listText += \`   💰 Costo total con transferencia: \${totalTransferencia.toLocaleString()} CUP\\n\\n\`;
+    
+    listText += "═══════════════════════════════════\\n";
+    listText += "💡 INFORMACIÓN IMPORTANTE:\\n";
+    listText += "• Los precios en efectivo no tienen recargo adicional\\n";
+    listText += \`• Las transferencias bancarias tienen un \${transferFeePercentage}% de recargo\\n\`;
+    listText += "• Puedes seleccionar novelas individuales o el catálogo completo\\n";
+    listText += "• Todos los precios están en pesos cubanos (CUP)\\n\\n";
+    listText += "📞 Para encargar, contacta al +5354690878\\n";
+    listText += "🌟 ¡Disfruta de las mejores novelas!\\n";
+    listText += \`\\n📅 Generado el: \${new Date().toLocaleString('es-ES')}\`;
+    
+    return listText;
+  };
+
+  const downloadNovelList = () => {
+    const listText = generateNovelListText();
+    const blob = new Blob([listText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Catalogo_Novelas_TV_a_la_Carta.txt';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const sendSelectedNovelas = () => {
+    if (selectedNovelas.length === 0) {
+      alert('Por favor selecciona al menos una novela');
+      return;
+    }
+
+    const { cashNovelas, transferNovelas, cashTotal, transferBaseTotal, transferFee, transferTotal, grandTotal, totalCapitulos } = totals;
+    
+    let message = "Me interesan los siguientes títulos:\\n\\n";
+    
+    // Cash novels
+    if (cashNovelas.length > 0) {
+      message += "💵 PAGO EN EFECTIVO:\\n";
+      message += "═══════════════════════════════════\\n";
+      cashNovelas.forEach((novela, index) => {
+        message += \`\${index + 1}. \${novela.titulo}\\n\`;
+        message += \`   📺 Género: \${novela.genero}\\n\`;
+        message += \`   📊 Capítulos: \${novela.capitulos}\\n\`;
+        message += \`   📅 Año: \${novela.año}\\n\`;
+        message += \`   💰 Costo: $\${(novela.capitulos * novelPricePerChapter).toLocaleString()} CUP\\n\\n\`;
+      });
+      message += \`💰 Subtotal Efectivo: $\${cashTotal.toLocaleString()} CUP\\n\`;
+      message += \`📊 Total capítulos: \${cashNovelas.reduce((sum, n) => sum + n.capitulos, 0)}\\n\\n\`;
+    }
+    
+    // Transfer novels
+    if (transferNovelas.length > 0) {
+      message += \`🏦 PAGO POR TRANSFERENCIA BANCARIA (+\${transferFeePercentage}%):\\n\`;
+      message += "═══════════════════════════════════\\n";
+      transferNovelas.forEach((novela, index) => {
+        const baseCost = novela.capitulos * novelPricePerChapter;
+        const fee = Math.round(baseCost * (transferFeePercentage / 100));
+        const totalCost = baseCost + fee;
+        message += \`\${index + 1}. \${novela.titulo}\\n\`;
+        message += \`   📺 Género: \${novela.genero}\\n\`;
+        message += \`   📊 Capítulos: \${novela.capitulos}\\n\`;
+        message += \`   📅 Año: \${novela.año}\\n\`;
+        message += \`   💰 Costo base: $\${baseCost.toLocaleString()} CUP\\n\`;
+        message += \`   💳 Recargo (\${transferFeePercentage}%): +$\${fee.toLocaleString()} CUP\\n\`;
+        message += \`   💰 Costo total: $\${totalCost.toLocaleString()} CUP\\n\\n\`;
+      });
+      message += \`💰 Subtotal base transferencia: $\${transferBaseTotal.toLocaleString()} CUP\\n\`;
+      message += \`💳 Recargo total (\${transferFeePercentage}%): +$\${transferFee.toLocaleString()} CUP\\n\`;
+      message += \`💰 Subtotal Transferencia: $\${transferTotal.toLocaleString()} CUP\\n\`;
+      message += \`📊 Total capítulos: \${transferNovelas.reduce((sum, n) => sum + n.capitulos, 0)}\\n\\n\`;
+    }
+    
+    // Final summary
+    message += "📊 RESUMEN FINAL:\\n";
+    message += "═══════════════════════════════════\\n";
+    message += \`• Total de novelas: \${selectedNovelas.length}\\n\`;
+    message += \`• Total de capítulos: \${totalCapitulos}\\n\`;
+    if (cashTotal > 0) {
+      message += \`• Efectivo: $\${cashTotal.toLocaleString()} CUP (\${cashNovelas.length} novelas)\\n\`;
+    }
+    if (transferTotal > 0) {
+      message += \`• Transferencia: $\${transferTotal.toLocaleString()} CUP (\${transferNovelas.length} novelas)\\n\`;
+    }
+    message += \`• TOTAL A PAGAR: $\${grandTotal.toLocaleString()} CUP\\n\\n\`;
+    message += \`📱 Enviado desde TV a la Carta\\n\`;
+    message += \`📅 Fecha: \${new Date().toLocaleString('es-ES')}\`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = \`https://wa.me/5354690878?text=\${encodedMessage}\`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleCall = () => {
+    window.open(\`tel:\${phoneNumber}\`, '_self');
+  };
+
+  const handleWhatsApp = () => {
+    const message = "📚 *Solicitar novelas*\\n\\n¿Hay novelas que me gustaría ver en [TV a la Carta] a continuación te comento:";
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = \`https://wa.me/5354690878?text=\${encodedMessage}\`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      {/* Implementación completa del modal */}
-    </div>
-  );
-}\`);
-
-      // PriceCard con precios actualizados
-      componentsFolder!.file('PriceCard.tsx', \`import React from 'react';
-import { DollarSign, Tv, Film, Star, CreditCard } from 'lucide-react';
-import { AdminContext } from '../context/AdminContext';
-
-interface PriceCardProps {
-  type: 'movie' | 'tv';
-  selectedSeasons?: number[];
-  episodeCount?: number;
-  isAnime?: boolean;
-}
-
-export function PriceCard({ type, selectedSeasons = [], episodeCount = 0, isAnime = false }: PriceCardProps) {
-  const adminContext = React.useContext(AdminContext);
-  
-  // Get prices from admin context with real-time updates
-  const moviePrice = adminContext?.state?.prices?.moviePrice || ${state.prices.moviePrice};
-  const seriesPrice = adminContext?.state?.prices?.seriesPrice || ${state.prices.seriesPrice};
-  const transferFeePercentage = adminContext?.state?.prices?.transferFeePercentage || ${state.prices.transferFeePercentage};
-  
-  const calculatePrice = () => {
-    if (type === 'movie') {
-      return moviePrice;
-    } else {
-      return selectedSeasons.length * seriesPrice;
-    }
-  };
-
-  const price = calculatePrice();
-  const transferPrice = Math.round(price * (1 + transferFeePercentage / 100));
-  
-  const getIcon = () => {
-    if (type === 'movie') {
-      return isAnime ? '🎌' : '🎬';
-    }
-    return isAnime ? '🎌' : '📺';
-  };
-
-  const getTypeLabel = () => {
-    if (type === 'movie') {
-      return isAnime ? 'Película Animada' : 'Película';
-    }
-    return isAnime ? 'Anime' : 'Serie';
-  };
-
-  return (
-    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-200 shadow-lg">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center">
-          <div className="bg-green-100 p-2 rounded-lg mr-3 shadow-sm">
-            <span className="text-lg">{getIcon()}</span>
-          </div>
-          <div>
-            <h3 className="font-bold text-green-800 text-sm">{getTypeLabel()}</h3>
-            <p className="text-green-600 text-xs">
-              {type === 'tv' && selectedSeasons.length > 0 
-                ? \`\${selectedSeasons.length} temporada\${selectedSeasons.length > 1 ? 's' : ''}\`
-                : 'Contenido completo'
-              }
-            </p>
-          </div>
-        </div>
-        <div className="bg-green-500 text-white p-2 rounded-full shadow-md">
-          <DollarSign className="h-4 w-4" />
-        </div>
-      </div>
-      
-      <div className="space-y-3">
-        <div className="bg-white rounded-lg p-3 border border-green-200">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-medium text-green-700 flex items-center">
-              <DollarSign className="h-3 w-3 mr-1" />
-              Efectivo
-            </span>
-            <span className="text-lg font-bold text-green-700">
-              \$\${price.toLocaleString()} CUP
-            </span>
-          </div>
-        </div>
-        
-        <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-medium text-orange-700 flex items-center">
-              <CreditCard className="h-3 w-3 mr-1" />
-              Transferencia
-            </span>
-            <span className="text-lg font-bold text-orange-700">
-              \$\${transferPrice.toLocaleString()} CUP
-            </span>
-          </div>
-          <div className="text-xs text-orange-600">
-            +\${transferFeePercentage}% recargo bancario
-          </div>
-        </div>
-        
-        {type === 'tv' && selectedSeasons.length > 0 && (
-          <div className="text-xs text-green-600 text-center bg-green-100 rounded-lg p-2">
-            \$\${(price / selectedSeasons.length).toLocaleString()} CUP por temporada (efectivo)
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}\`);
-
-      // Incluir todos los demás componentes con código fuente completo
-      componentsFolder!.file('Header.tsx', \`import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, ShoppingCart, Film } from 'lucide-react';
-import { useCart } from '../context/CartContext';
-
-export function Header() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { state } = useCart();
-
-  // Real-time search effect
-  React.useEffect(() => {
-    if (searchQuery.trim() && searchQuery.length > 2) {
-      const timeoutId = setTimeout(() => {
-        navigate(\`/search?q=\${encodeURIComponent(searchQuery.trim())}\`);
-      }, 500);
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [searchQuery, navigate]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(\`/search?q=\${encodeURIComponent(searchQuery.trim())}\`);
-    }
-  };
-
-  React.useEffect(() => {
-    if (!location.pathname.includes('/search')) {
-      setSearchQuery('');
-    }
-  }, [location.pathname]);
-
-  return (
-    <header className="bg-gradient-to-r from-blue-900 to-blue-800 text-white shadow-lg sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-8">
-            <Link to="/" className="flex items-center space-x-2 hover:text-blue-200 transition-colors">
-              <img src="/unnamed.png" alt="TV a la Carta" className="h-8 w-8" />
-              <span className="font-bold text-xl hidden sm:block">TV a la Carta</span>
-            </Link>
-            
-            <nav className="hidden md:flex space-x-6">
-              <Link to="/movies" className="hover:text-blue-200 transition-colors">
-                Películas
-              </Link>
-              <Link to="/tv" className="hover:text-blue-200 transition-colors">
-                Series
-              </Link>
-              <Link to="/anime" className="hover:text-blue-200 transition-colors">
-                Anime
-              </Link>
-            </nav>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <form onSubmit={handleSearch} className="relative hidden sm:block">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar películas, series..."
-                  className="pl-10 pr-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent w-64"
-                />
+      <div className="bg-white rounded-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden shadow-2xl animate-in fade-in duration-300">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-pink-600 to-purple-600 p-4 sm:p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="bg-white/20 p-3 rounded-xl mr-4 shadow-lg">
+                <BookOpen className="h-8 w-8" />
               </div>
-            </form>
-
-            <Link
-              to="/cart"
-              className="relative p-2 hover:bg-white/10 rounded-full transition-all duration-300 hover:scale-110"
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-bold">Catálogo de Novelas</h2>
+                <p className="text-sm sm:text-base opacity-90">Novelas completas disponibles</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-full transition-colors"
             >
-              <ShoppingCart className="h-6 w-6 transition-transform duration-300" />
-              {state.total > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-                  {state.total}
-                </span>
-              )}
-            </Link>
+              <X className="h-6 w-6" />
+            </button>
           </div>
         </div>
 
-        <div className="pb-3 sm:hidden">
-          <form onSubmit={handleSearch}>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar películas, series..."
-                className="pl-10 pr-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent w-full"
-              />
+        <div className="overflow-y-auto max-h-[calc(95vh-120px)]">
+          <div className="p-4 sm:p-6">
+            {/* Main Information */}
+            <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-2xl p-6 mb-6 border-2 border-pink-200">
+              <div className="flex items-center mb-4">
+                <div className="bg-pink-100 p-3 rounded-xl mr-4">
+                  <Info className="h-6 w-6 text-pink-600" />
+                </div>
+                <h3 className="text-xl font-bold text-pink-900">Información Importante</h3>
+              </div>
+              
+              <div className="space-y-4 text-pink-800">
+                <div className="flex items-center">
+                  <span className="text-2xl mr-3">📚</span>
+                  <p className="font-semibold">Las novelas se encargan completas</p>
+                </div>
+                <div className="flex items-center">
+                  <span className="text-2xl mr-3">💰</span>
+                  <p className="font-semibold">Costo: $\{novelPricePerChapter} CUP por cada capítulo</p>
+                </div>
+                <div className="flex items-center">
+                  <span className="text-2xl mr-3">💳</span>
+                  <p className="font-semibold">Transferencia bancaria: +\{transferFeePercentage}% de recargo</p>
+                </div>
+                <div className="flex items-center">
+                  <span className="text-2xl mr-3">📱</span>
+                  <p className="font-semibold">Para más información, contacta al número:</p>
+                </div>
+              </div>
+
+              {/* Contact number */}
+              <div className="mt-6 bg-white rounded-xl p-4 border border-pink-300">
+                <div className="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0">
+                  <div className="text-center sm:text-left">
+                    <p className="text-lg font-bold text-gray-900">\{phoneNumber}</p>
+                    <p className="text-sm text-gray-600">Contacto directo</p>
+                  </div>
+                  
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={handleCall}
+                      className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center"
+                    >
+                      <Phone className="h-4 w-4 mr-2" />
+                      Llamar
+                    </button>
+                    <button
+                      onClick={handleWhatsApp}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center"
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      WhatsApp
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </form>
+
+            {/* Catalog options */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <button
+                onClick={downloadNovelList}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white p-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center"
+              >
+                <Download className="h-6 w-6 mr-3" />
+                <div className="text-left">
+                  <div className="text-lg">Descargar Catálogo</div>
+                  <div className="text-sm opacity-90">Lista completa de novelas</div>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setShowNovelList(!showNovelList)}
+                className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white p-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center"
+              >
+                <BookOpen className="h-6 w-6 mr-3" />
+                <div className="text-left">
+                  <div className="text-lg">Ver y Seleccionar</div>
+                  <div className="text-sm opacity-90">Elegir novelas específicas</div>
+                </div>
+              </button>
+            </div>
+
+            {/* Novels list */}
+            {showNovelList && (
+              <div className="bg-white rounded-2xl border-2 border-gray-200 overflow-hidden">
+                {/* Filters */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-b border-gray-200">
+                  <div className="flex items-center mb-4">
+                    <Filter className="h-5 w-5 text-purple-600 mr-2" />
+                    <h4 className="text-lg font-bold text-purple-900">Filtros de Búsqueda</h4>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por título..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      />
+                    </div>
+                    
+                    <select
+                      value={selectedGenre}
+                      onChange={(e) => setSelectedGenre(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="">Todos los géneros</option>
+                      {uniqueGenres.map(genre => (
+                        <option key={genre} value={genre}>{genre}</option>
+                      ))}
+                    </select>
+                    
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="">Todos los años</option>
+                      {uniqueYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                    
+                    <div className="flex space-x-2">
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as 'titulo' | 'año' | 'capitulos')}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                      >
+                        <option value="titulo">Título</option>
+                        <option value="año">Año</option>
+                        <option value="capitulos">Capítulos</option>
+                      </select>
+                      
+                      <button
+                        onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                        className="px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition-colors"
+                        title={\`Ordenar \${sortOrder === 'asc' ? 'descendente' : 'ascendente'}\`}
+                      >
+                        {sortOrder === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
+                    <div className="text-sm text-purple-700">
+                      Mostrando \{filteredNovelas.length} de \{allNovelas.length} novelas
+                      {(searchTerm || selectedGenre || selectedYear) && (
+                        <span className="ml-2 text-purple-600">• Filtros activos</span>
+                      )}
+                    </div>
+                    
+                    {(searchTerm || selectedGenre || selectedYear || sortBy !== 'titulo' || sortOrder !== 'asc') && (
+                      <button
+                        onClick={clearFilters}
+                        className="text-sm bg-purple-200 hover:bg-purple-300 text-purple-800 px-3 py-1 rounded-lg transition-colors"
+                      >
+                        Limpiar filtros
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-purple-100 to-pink-100 p-4 border-b border-gray-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0">
+                    <h4 className="text-lg font-bold text-gray-900">
+                      Seleccionar Novelas (\{selectedNovelas.length} seleccionadas)
+                    </h4>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={selectAllNovelas}
+                        className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Todas
+                      </button>
+                      <button
+                        onClick={clearAllNovelas}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Ninguna
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Totals summary */}
+                {selectedNovelas.length > 0 && (
+                  <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 border-b border-gray-200">
+                    <div className="flex items-center mb-4">
+                      <Calculator className="h-6 w-6 text-green-600 mr-3" />
+                      <h5 className="text-lg font-bold text-gray-900">Resumen de Selección</h5>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                      <div className="bg-white rounded-lg p-3 border border-gray-200 text-center">
+                        <div className="text-2xl font-bold text-purple-600">\{selectedNovelas.length}</div>
+                        <div className="text-sm text-gray-600">Novelas</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200 text-center">
+                        <div className="text-2xl font-bold text-blue-600">\{totals.totalCapitulos}</div>
+                        <div className="text-sm text-gray-600">Capítulos</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200 text-center">
+                        <div className="text-2xl font-bold text-green-600">$\{totals.cashTotal.toLocaleString()}</div>
+                        <div className="text-sm text-gray-600">Efectivo</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-200 text-center">
+                        <div className="text-2xl font-bold text-orange-600">$\{totals.transferTotal.toLocaleString()}</div>
+                        <div className="text-sm text-gray-600">Transferencia</div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-green-100 to-blue-100 rounded-lg p-4 border-2 border-green-300">
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-bold text-gray-900">TOTAL A PAGAR:</span>
+                        <span className="text-2xl font-bold text-green-600">$\{totals.grandTotal.toLocaleString()} CUP</span>
+                      </div>
+                      {totals.transferFee > 0 && (
+                        <div className="text-sm text-orange-600 mt-2">
+                          Incluye $\{totals.transferFee.toLocaleString()} CUP de recargo por transferencia (\{transferFeePercentage}%)
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="max-h-96 overflow-y-auto p-4">
+                  <div className="grid grid-cols-1 gap-3">
+                    {filteredNovelas.length > 0 ? (
+                      filteredNovelas.map((novela) => {
+                      const isSelected = selectedNovelas.includes(novela.id);
+                      const baseCost = novela.capitulos * novelPricePerChapter;
+                      const transferCost = Math.round(baseCost * (1 + transferFeePercentage / 100));
+                      const finalCost = novela.paymentType === 'transfer' ? transferCost : baseCost;
+                      
+                      return (
+                        <div
+                          key={novela.id}
+                          className={\`p-4 rounded-xl border transition-all \${
+                            isSelected 
+                              ? 'bg-purple-50 border-purple-300 shadow-md' 
+                              : 'bg-gray-50 border-gray-200 hover:bg-purple-25 hover:border-purple-200'
+                          }\`}
+                        >
+                          <div className="flex items-start space-x-4">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleNovelToggle(novela.id)}
+                              className="mt-1 h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                            />
+                            
+                            <div className="flex-1">
+                              <div className="flex flex-col sm:flex-row sm:items-start justify-between space-y-3 sm:space-y-0">
+                                <div className="flex-1">
+                                  <p className="font-semibold text-gray-900 mb-2">\{novela.titulo}</p>
+                                  <div className="flex flex-wrap gap-2 text-sm text-gray-600 mb-3">
+                                    <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                                      \{novela.genero}
+                                    </span>
+                                    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                                      \{novela.capitulos} capítulos
+                                    </span>
+                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                      \{novela.año}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Payment type selector */}
+                                  <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+                                    <span className="text-sm font-medium text-gray-700">Tipo de pago:</span>
+                                    <div className="flex space-x-2">
+                                      <button
+                                        onClick={() => handlePaymentTypeChange(novela.id, 'cash')}
+                                        className={\`px-3 py-2 rounded-full text-xs font-medium transition-colors \${
+                                          novela.paymentType === 'cash'
+                                            ? 'bg-green-500 text-white'
+                                            : 'bg-gray-200 text-gray-600 hover:bg-green-100'
+                                        }\`}
+                                      >
+                                        <DollarSign className="h-3 w-3 inline mr-1" />
+                                        Efectivo
+                                      </button>
+                                      <button
+                                        onClick={() => handlePaymentTypeChange(novela.id, 'transfer')}
+                                        className={\`px-3 py-2 rounded-full text-xs font-medium transition-colors \${
+                                          novela.paymentType === 'transfer'
+                                            ? 'bg-orange-500 text-white'
+                                            : 'bg-gray-200 text-gray-600 hover:bg-orange-100'
+                                        }\`}
+                                      >
+                                        <CreditCard className="h-3 w-3 inline mr-1" />
+                                        Transferencia (+\{transferFeePercentage}%)
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="text-right sm:ml-4">
+                                  <div className={\`text-lg font-bold \${
+                                    novela.paymentType === 'cash' ? 'text-green-600' : 'text-orange-600'
+                                  }\`}>
+                                    $\{finalCost.toLocaleString()} CUP
+                                  </div>
+                                  {novela.paymentType === 'transfer' && (
+                                    <div className="text-xs text-gray-500">
+                                      Base: $\{baseCost.toLocaleString()} CUP
+                                      <br />
+                                      Recargo: +$\{(transferCost - baseCost).toLocaleString()} CUP
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    $\{novelPricePerChapter} CUP × \{novela.capitulos} cap.
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {isSelected && (
+                              <Check className="h-5 w-5 text-purple-600 mt-1" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                      })
+                    ) : (
+                      <div className="text-center py-8">
+                        <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                          No se encontraron novelas
+                        </h3>
+                        <p className="text-gray-600 mb-4">
+                          No hay novelas que coincidan con los filtros seleccionados.
+                        </p>
+                        <button
+                          onClick={clearFilters}
+                          className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                        >
+                          Limpiar filtros
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {selectedNovelas.length > 0 && (
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 border-t border-gray-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0">
+                      <div className="text-center sm:text-left">
+                        <p className="font-semibold text-gray-900">
+                          \{selectedNovelas.length} novelas seleccionadas
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Total: $\{totals.grandTotal.toLocaleString()} CUP
+                        </p>
+                      </div>
+                      <button
+                        onClick={sendSelectedNovelas}
+                        disabled={selectedNovelas.length === 0}
+                        className={\`px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 flex items-center justify-center \${
+                          selectedNovelas.length > 0
+                            ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }\`}
+                      >
+                        <MessageCircle className="h-5 w-5 mr-2" />
+                        Enviar por WhatsApp
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </header>
+    </div>
   );
-}\`);
+}`;
+  };
 
-      // Incluir todos los demás archivos de componentes, páginas, servicios, etc.
-      // [Aquí se incluirían todos los archivos del proyecto con su código fuente completo]
+  // Generate system configuration file
+  const generateSystemConfig = (): string => {
+    return JSON.stringify({
+      systemVersion: "2.0.0",
+      exportDate: new Date().toISOString(),
+      configuration: {
+        prices: state.prices,
+        deliveryZones: state.deliveryZones,
+        novels: state.novels,
+        notifications: state.notifications.slice(0, 10)
+      },
+      features: [
+        "Real-time synchronization",
+        "Admin panel",
+        "Price management",
+        "Delivery zones",
+        "Novel catalog",
+        "Notification system",
+        "Complete system export"
+      ]
+    }, null, 2);
+  };
 
-      // Archivos de configuración del proyecto
-      zip.file('vite.config.ts', \`import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    historyApiFallback: true,
-  },
-  preview: {
-    historyApiFallback: true,
-  },
-  optimizeDeps: {
-    exclude: ['lucide-react'],
-  },
-});\`);
-
-      zip.file('tailwind.config.js', \`/** @type {import('tailwindcss').Config} */
-export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-};\`);
-
-      zip.file('tsconfig.json', JSON.stringify({
-        "files": [],
-        "references": [
-          { "path": "./tsconfig.app.json" },
-          { "path": "./tsconfig.node.json" }
-        ]
-      }, null, 2));
-
-      zip.file('index.html', \`<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/unnamed.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
-    <base href="/" />
-    <title>TV a la Carta: Películas y series ilimitadas y mucho más</title>
-    <style>
-      * {
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-        user-select: none;
-        -webkit-touch-callout: none;
-        -webkit-tap-highlight-color: transparent;
-      }
-      
-      input, textarea, [contenteditable="true"] {
-        -webkit-user-select: text;
-        -moz-user-select: text;
-        -ms-user-select: text;
-        user-select: text;
-      }
-      
-      body {
-        -webkit-text-size-adjust: 100%;
-        -ms-text-size-adjust: 100%;
-        text-size-adjust: 100%;
-        touch-action: manipulation;
-      }
-      
-      input[type="text"],
-      input[type="email"],
-      input[type="tel"],
-      input[type="password"],
-      input[type="number"],
-      input[type="search"],
-      textarea,
-      select {
-        font-size: 16px !important;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        appearance: none;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>\`);
-
-      zip.file('vercel.json', JSON.stringify({ "rewrites": [{ "source": "/(.*)", "destination": "/" }] }, null, 2));
-      publicFolder!.file('_redirects', \`# Netlify redirects for SPA routing
-/*    /index.html   200
-
-# Handle specific routes
-/movies    /index.html   200
-/tv        /index.html   200
-/anime     /index.html   200
-/cart      /index.html   200
-/search    /index.html   200
-/movie/*   /index.html   200
-/tv/*      /index.html   200
-/admin     /index.html   200\`);
-
-      // Incluir archivos de configuración adicionales
-      zip.file('eslint.config.js', \`import js from '@eslint/js';
-import globals from 'globals';
-import reactHooks from 'eslint-plugin-react-hooks';
-import reactRefresh from 'eslint-plugin-react-refresh';
-import tseslint from 'typescript-eslint';
-
-export default tseslint.config(
-  { ignores: ['dist'] },
-  {
-    extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['**/*.{ts,tsx}'],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-    },
-    plugins: {
-      'react-hooks': reactHooks,
-      'react-refresh': reactRefresh,
-    },
-    rules: {
-      ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
-    },
-  }
-);\`);
-
-      zip.file('postcss.config.js', \`export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-};\`);
-
-      // Incluir README con información del sistema actualizada
-      const readmeContent = \`# TV a la Carta - Sistema Completo Exportado
+  // Generate README file
+  const generateSystemReadme = (): string => {
+    return `# TV a la Carta - Sistema Completo
 
 ## Descripción
 Sistema completo de TV a la Carta con panel de administración avanzado y sincronización en tiempo real.
 
 ## Características Principales
-- ✅ Panel de administración completo con notificaciones
-- ✅ Gestión de precios en tiempo real sincronizada
-- ✅ Gestión de zonas de entrega dinámicas
-- ✅ Catálogo de novelas completamente administrable
-- ✅ Sistema de notificaciones detalladas
-- ✅ Sincronización automática cross-tab
-- ✅ Exportación completa del código fuente del sistema
+- ✅ Panel de administración completo
+- ✅ Gestión de precios en tiempo real
+- ✅ Gestión de zonas de entrega
+- ✅ Catálogo de novelas administrable
+- ✅ Sistema de notificaciones
+- ✅ Sincronización automática
+- ✅ Exportación del sistema completo
 
-## Configuración Actual del Sistema (Exportado el \${new Date().toLocaleString('es-ES')})
+## Configuración Actual del Sistema
 
-### Precios Configurados (Sincronizados en tiempo real)
-- Películas: \$\${state.prices.moviePrice.toLocaleString()} CUP
-- Series (por temporada): \$\${state.prices.seriesPrice.toLocaleString()} CUP
-- Recargo transferencia: \${state.prices.transferFeePercentage}%
-- Novelas (por capítulo): \$\${state.prices.novelPricePerChapter} CUP
+### Precios Configurados
+- Películas: $${state.prices.moviePrice} CUP
+- Series (por temporada): $${state.prices.seriesPrice} CUP
+- Recargo transferencia: ${state.prices.transferFeePercentage}%
+- Novelas (por capítulo): $${state.prices.novelPricePerChapter} CUP
 
-### Zonas de Entrega Configuradas (\${state.deliveryZones.length} zonas activas)
-\${state.deliveryZones.map(zone => \`- \${zone.name}: \$\${zone.cost.toLocaleString()} CUP\`).join('\\n')}
+### Zonas de Entrega Configuradas
+${state.deliveryZones.map(zone => `- ${zone.name}: $${zone.cost} CUP`).join('\n')}
 
-### Novelas Administradas (\${state.novels.length} novelas en catálogo)
-\${state.novels.map(novel => \`- \${novel.titulo} (\${novel.año}) - \${novel.capitulos} capítulos - Género: \${novel.genero}\`).join('\\n')}
+### Novelas Administradas
+${state.novels.map(novel => `- ${novel.titulo} (${novel.año}) - ${novel.capitulos} capítulos`).join('\n')}
 
-## Archivos Incluidos en la Exportación
-Este sistema incluye TODOS los archivos de código fuente completos con las configuraciones actuales:
-
-### Archivos Principales
-- \`src/App.tsx\` - Aplicación principal con rutas
-- \`src/main.tsx\` - Punto de entrada
-- \`index.html\` - HTML principal con configuraciones anti-zoom
-
-### Context (Estado Global)
-- \`src/context/AdminContext.tsx\` - **SINCRONIZADO** con configuraciones actuales
-- \`src/context/CartContext.tsx\` - **SINCRONIZADO** con precios actuales
-
-### Componentes Principales
-- \`src/components/CheckoutModal.tsx\` - **SINCRONIZADO** con zonas de entrega actuales
-- \`src/components/NovelasModal.tsx\` - **SINCRONIZADO** con catálogo de novelas actual
-- \`src/components/PriceCard.tsx\` - **SINCRONIZADO** con precios actuales
-- \`src/components/Header.tsx\` - Navegación principal
-- \`src/components/MovieCard.tsx\` - Tarjetas de contenido
-- \`src/components/HeroCarousel.tsx\` - Carrusel principal
-- \`src/components/CartAnimation.tsx\` - Animaciones del carrito
-- \`src/components/CastSection.tsx\` - Sección de reparto
-- \`src/components/VideoPlayer.tsx\` - Reproductor de videos
-- \`src/components/LoadingSpinner.tsx\` - Indicador de carga
-- \`src/components/ErrorMessage.tsx\` - Mensajes de error
-- \`src/components/Toast.tsx\` - Notificaciones toast
-
-### Páginas
-- \`src/pages/Home.tsx\` - Página principal
-- \`src/pages/Movies.tsx\` - Catálogo de películas
-- \`src/pages/TVShows.tsx\` - Catálogo de series
-- \`src/pages/Anime.tsx\` - Catálogo de anime
-- \`src/pages/Search.tsx\` - Página de búsqueda
-- \`src/pages/MovieDetail.tsx\` - Detalles de películas
-- \`src/pages/TVDetail.tsx\` - Detalles de series
-- \`src/pages/Cart.tsx\` - Carrito de compras
-- \`src/pages/AdminPanel.tsx\` - Panel de administración
-
-### Servicios
-- \`src/services/tmdb.ts\` - Servicio de API de TMDB
-- \`src/services/contentSync.ts\` - Sincronización de contenido
-
-### Utilidades
-- \`src/utils/whatsapp.ts\` - Integración con WhatsApp
-- \`src/utils/systemExport.ts\` - Utilidades de exportación
-
-### Hooks
-- \`src/hooks/useContentSync.ts\` - Hook de sincronización
-
-### Tipos
-- \`src/types/movie.ts\` - Definiciones de tipos
-
-### Configuración
-- \`src/config/api.ts\` - Configuración de API
-- \`src/index.css\` - Estilos globales
-
-### Archivos de Configuración del Proyecto
-- \`package.json\` - Dependencias y scripts
-- \`vite.config.ts\` - Configuración de Vite
-- \`tailwind.config.js\` - Configuración de Tailwind
-- \`tsconfig.json\` - Configuración de TypeScript
-- \`eslint.config.js\` - Configuración de ESLint
-- \`postcss.config.js\` - Configuración de PostCSS
-- \`vercel.json\` - Configuración de Vercel
-- \`public/_redirects\` - Configuración de Netlify
-
-## Instalación y Uso
-1. Extraer el archivo ZIP completo
-2. Ejecutar: \`npm install\`
-3. Ejecutar: \`npm run dev\`
+## Instalación
+1. Extraer el archivo ZIP
+2. Ejecutar: npm install
+3. Ejecutar: npm run dev
 
 ## Panel de Administración
 - URL: /admin
 - Usuario: admin
 - Contraseña: admin123
 
-## Características de Sincronización
-- ✅ Cambios en precios se reflejan automáticamente en CheckoutModal, NovelasModal, PriceCard y CartContext
-- ✅ Nuevas zonas de entrega aparecen inmediatamente en CheckoutModal
-- ✅ Novelas agregadas/editadas se sincronizan automáticamente en NovelasModal
-- ✅ Notificaciones detalladas para cada acción del administrador
-- ✅ Sincronización cross-tab en tiempo real
-- ✅ Exportación completa del código fuente con configuraciones actuales
+## Exportado el: ${new Date().toLocaleString('es-ES')}
+`;
+  };
 
-## Estado del Sistema al Momento de la Exportación
-- Precios sincronizados: ✅
-- Zonas de entrega sincronizadas: ✅ (\${state.deliveryZones.length} zonas)
-- Novelas sincronizadas: ✅ (\${state.novels.length} novelas)
-- Notificaciones activas: \${state.notifications.length}
-- Última sincronización: \${state.syncStatus.lastSync || 'Nunca'}
+  // Main export function
+  const exportSystemBackup = async (): Promise<void> => {
+    try {
+      addNotification({
+        type: 'info',
+        title: 'Iniciando exportación',
+        message: 'Generando copia de seguridad del sistema completo...',
+        section: 'Sistema',
+        action: 'export_start'
+      });
 
-## Exportado el: \${new Date().toLocaleString('es-ES')}
-## Versión del Sistema: 2.0.0 - Sincronización Completa
-\`;
+      const zip = new JSZip();
 
-      zip.file('README.md', readmeContent);
+      // Add the three main files with current state
+      zip.file('AdminContext.tsx', generateAdminContextFile());
+      zip.file('CheckoutModal.tsx', generateCheckoutModalFile());
+      zip.file('NovelasModal.tsx', generateNovelasModalFile());
 
-      // Incluir archivo de configuración del sistema exportado
-      const systemConfigContent = JSON.stringify({
-        systemVersion: "2.0.0",
-        exportDate: new Date().toISOString(),
-        exportedBy: "Panel de Administración",
-        configuration: {
-          prices: state.prices,
-          deliveryZones: state.deliveryZones,
-          novels: state.novels,
-          notifications: state.notifications.slice(0, 10)
-        },
-        features: [
-          "Real-time synchronization",
-          "Complete admin panel",
-          "Dynamic price management",
-          "Delivery zones management",
-          "Novel catalog management",
-          "Detailed notification system",
-          "Complete source code export",
-          "Cross-tab synchronization"
-        ],
-        synchronizedFiles: [
-          "src/context/AdminContext.tsx",
-          "src/context/CartContext.tsx", 
-          "src/components/CheckoutModal.tsx",
-          "src/components/NovelasModal.tsx",
-          "src/components/PriceCard.tsx"
-        ],
-        statistics: {
-          totalFiles: "50+",
-          totalZones: state.deliveryZones.length,
-          totalNovels: state.novels.length,
-          totalNotifications: state.notifications.length
-        }
-      }, null, 2);
+      // Add configuration files
+      zip.file('system-config.json', generateSystemConfig());
+      zip.file('README.md', generateSystemReadme());
 
-      zip.file('system-config.json', systemConfigContent);
-      
-      // Generar y descargar el ZIP
+      // Generate and download the ZIP file
       const content = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(content);
       const link = document.createElement('a');
       link.href = url;
-      link.download = \`tv-a-la-carta-sistema-completo-\${timestamp}.zip\`;
+      link.download = `TV_a_la_Carta_Sistema_Completo_${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      // Update last backup timestamp
-      dispatch({ 
-        type: 'SYNC_STATE', 
-        payload: { lastBackup: new Date().toISOString() } 
-      });
-
       addNotification({
         type: 'success',
-        title: 'Sistema exportado exitosamente',
-        message: \`✅ EXPORTACIÓN COMPLETA FINALIZADA
-
-📦 Archivo generado: tv-a-la-carta-sistema-completo-\${timestamp}.zip
-
-📋 CONTENIDO EXPORTADO:
-• Código fuente completo de todos los archivos del sistema
-• AdminContext.tsx con configuraciones actuales sincronizadas
-• CheckoutModal.tsx con \${state.deliveryZones.length} zonas de entrega actuales
-• NovelasModal.tsx con \${state.novels.length} novelas del catálogo actual
-• PriceCard.tsx con precios actuales (\$\${state.prices.moviePrice} películas, \$\${state.prices.seriesPrice} series)
-• CartContext.tsx con lógica de precios sincronizada
-• Todos los componentes, páginas, servicios y utilidades
-• Archivos de configuración del proyecto (package.json, vite.config.ts, etc.)
-• README.md con documentación completa del sistema
-
-🔄 SINCRONIZACIÓN:
-• Precios: \$\${state.prices.moviePrice} CUP películas, \$\${state.prices.seriesPrice} CUP series, \${state.prices.transferFeePercentage}% transferencia
-• Zonas de entrega: \${state.deliveryZones.length} zonas configuradas
-• Novelas: \${state.novels.length} novelas en catálogo
-• Estado: Completamente sincronizado
-
-El sistema exportado incluye TODOS los archivos de código fuente con las configuraciones actuales aplicadas.\`,
+        title: 'Exportación completada',
+        message: 'El sistema completo se ha exportado exitosamente con todas las configuraciones actuales',
         section: 'Sistema',
-        action: 'export'
+        action: 'export_complete'
       });
     } catch (error) {
       console.error('Error exporting system:', error);
       addNotification({
         type: 'error',
-        title: 'Error al exportar el sistema',
-        message: \`❌ ERROR EN LA EXPORTACIÓN
-
-No se pudo completar la exportación del sistema completo. 
-
-🔍 POSIBLES CAUSAS:
-• Espacio insuficiente en el dispositivo
-• Error de permisos de descarga
-• Problema de memoria del navegador
-
-💡 SOLUCIONES:
-• Libere espacio en su dispositivo
-• Verifique los permisos de descarga del navegador
-• Cierre otras pestañas para liberar memoria
-• Intente nuevamente en unos momentos
-
-Si el problema persiste, contacte al soporte técnico.\`,
+        title: 'Error en la exportación',
+        message: 'No se pudo completar la exportación del sistema',
         section: 'Sistema',
         action: 'export_error'
       });
@@ -2302,7 +2585,3 @@ export function useAdmin() {
 }
 
 export { AdminContext };
-      )
-    }
-  }
-}
