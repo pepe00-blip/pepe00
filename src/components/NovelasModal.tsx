@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download, MessageCircle, Phone, BookOpen, Info, Check, DollarSign, CreditCard, Calculator, Search, Filter, SortAsc, SortDesc } from 'lucide-react';
 import { AdminContext } from '../context/AdminContext';
+import { APP_CONFIG } from '../utils/constants';
 
 interface Novela {
   id: number;
@@ -97,7 +98,7 @@ export function NovelasModal({ isOpen, onClose }: NovelasModalProps) {
     descripcion: novel.descripcion
   }))];
 
-  const phoneNumber = '+5354690878';
+  const phoneNumber = APP_CONFIG.contact.phone;
 
   // Get unique genres
   const uniqueGenres = [...new Set(allNovelas.map(novela => novela.genero))].sort();
@@ -216,7 +217,7 @@ export function NovelasModal({ isOpen, onClose }: NovelasModalProps) {
     listText += "TV a la Carta - Novelas Completas\n\n";
     listText += `💰 Precio: $${novelPricePerChapter} CUP por capítulo\n`;
     listText += `💳 Recargo transferencia: ${transferFeePercentage}%\n`;
-    listText += "📱 Contacto: +5354690878\n\n";
+    listText += `📱 Contacto: ${APP_CONFIG.contact.phone}\n\n`;
     listText += "═══════════════════════════════════\n\n";
     
     listText += "💵 PRECIOS EN EFECTIVO:\n";
@@ -270,7 +271,7 @@ export function NovelasModal({ isOpen, onClose }: NovelasModalProps) {
     listText += `• Las transferencias bancarias tienen un ${transferFeePercentage}% de recargo\n`;
     listText += "• Puedes seleccionar novelas individuales o el catálogo completo\n";
     listText += "• Todos los precios están en pesos cubanos (CUP)\n\n";
-    listText += "📞 Para encargar, contacta al +5354690878\n";
+    listText += `📞 Para encargar, contacta al ${APP_CONFIG.contact.phone}\n`;
     listText += "🌟 ¡Disfruta de las mejores novelas!\n";
     listText += `\n📅 Generado el: ${new Date().toLocaleString('es-ES')}`;
     
@@ -364,7 +365,7 @@ export function NovelasModal({ isOpen, onClose }: NovelasModalProps) {
   const handleWhatsApp = () => {
     const message = "📚 *Solicitar novelas*\n\n¿Hay novelas que me gustaría ver en [TV a la Carta] a continuación te comento:";
     const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/5354690878?text=${encodedMessage}`;
+    const whatsappUrl = `https://wa.me/${APP_CONFIG.contact.whatsapp}?text=${encodedMessage}`;
     window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };
 

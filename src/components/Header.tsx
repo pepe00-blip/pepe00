@@ -2,23 +2,22 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, ShoppingCart, Film } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useDebounce } from '../hooks/useDebounce';
+import { APP_CONFIG } from '../utils/constants';
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
   const { state } = useCart();
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
   // Real-time search effect
   React.useEffect(() => {
-    if (searchQuery.trim() && searchQuery.length > 2) {
-      const timeoutId = setTimeout(() => {
-        navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      }, 500); // 500ms delay for debouncing
-
-      return () => clearTimeout(timeoutId);
+    if (debouncedSearchQuery.trim() && debouncedSearchQuery.length > 2) {
+      navigate(`/search?q=${encodeURIComponent(debouncedSearchQuery.trim())}`);
     }
-  }, [searchQuery, navigate]);
+  }, [debouncedSearchQuery, navigate]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,8 +39,8 @@ export function Header() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-8">
             <Link to="/" className="flex items-center space-x-2 hover:text-blue-200 transition-colors">
-              <img src="/unnamed.png" alt="TV a la Carta" className="h-8 w-8" />
-              <span className="font-bold text-xl hidden sm:block">TV a la Carta</span>
+              <img src="/unnamed.png" alt={APP_CONFIG.name} className="h-8 w-8" />
+              <span className="font-bold text-xl hidden sm:block">{APP_CONFIG.name}</span>
             </Link>
             
             <nav className="hidden md:flex space-x-6">

@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { AdminProvider } from './context/AdminContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Header } from './components/Header';
 import { Home } from './pages/Home';
 import { Movies } from './pages/Movies';
@@ -12,8 +13,15 @@ import { MovieDetail } from './pages/MovieDetail';
 import { TVDetail } from './pages/TVDetail';
 import { Cart } from './pages/Cart';
 import { AdminPanel } from './pages/AdminPanel';
+import { APP_CONFIG } from './utils/constants';
+import { clearUnusedCache } from './utils/performance';
 
 function App() {
+  // Limpiar cache no utilizado al iniciar
+  React.useEffect(() => {
+    clearUnusedCache();
+  }, []);
+
   // Detectar refresh y redirigir a la página principal
   React.useEffect(() => {
     const handleBeforeUnload = () => {
@@ -27,7 +35,7 @@ function App() {
         sessionStorage.removeItem('pageRefreshed');
         // Solo redirigir si no estamos ya en la página principal
         if (window.location.pathname !== '/') {
-          window.location.href = 'https://tvalacarta.vercel.app/';
+          window.location.href = APP_CONFIG.urls.production;
           return;
         }
       }
@@ -37,7 +45,7 @@ function App() {
     if (sessionStorage.getItem('pageRefreshed') === 'true') {
       sessionStorage.removeItem('pageRefreshed');
       if (window.location.pathname !== '/') {
-        window.location.href = 'https://tvalacarta.vercel.app/';
+        window.location.href = APP_CONFIG.urls.production;
         return;
       }
     }
@@ -100,34 +108,36 @@ function App() {
   }, []);
 
   return (
-    <AdminProvider>
-      <CartProvider>
-        <Router>
-          <div className="min-h-screen bg-gray-50">
-            <Routes>
-              <Route path="/admin" element={<AdminPanel />} />
-              <Route path="/*" element={
-                <>
-                  <Header />
-                  <main>
-                    <Routes>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/movies" element={<Movies />} />
-                      <Route path="/tv" element={<TVShows />} />
-                      <Route path="/anime" element={<Anime />} />
-                      <Route path="/search" element={<SearchPage />} />
-                      <Route path="/movie/:id" element={<MovieDetail />} />
-                      <Route path="/tv/:id" element={<TVDetail />} />
-                      <Route path="/cart" element={<Cart />} />
-                    </Routes>
-                  </main>
-                </>
-              } />
-            </Routes>
-          </div>
-        </Router>
-      </CartProvider>
-    </AdminProvider>
+    <ErrorBoundary>
+      <AdminProvider>
+        <CartProvider>
+          <Router>
+            <div className="min-h-screen bg-gray-50">
+              <Routes>
+                <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/*" element={
+                  <>
+                    <Header />
+                    <main>
+                      <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/movies" element={<Movies />} />
+                        <Route path="/tv" element={<TVShows />} />
+                        <Route path="/anime" element={<Anime />} />
+                        <Route path="/search" element={<SearchPage />} />
+                        <Route path="/movie/:id" element={<MovieDetail />} />
+                        <Route path="/tv/:id" element={<TVDetail />} />
+                        <Route path="/cart" element={<Cart />} />
+                      </Routes>
+                    </main>
+                  </>
+                } />
+              </Routes>
+            </div>
+          </Router>
+        </CartProvider>
+      </AdminProvider>
+    </ErrorBoundary>
   );
 }
 
