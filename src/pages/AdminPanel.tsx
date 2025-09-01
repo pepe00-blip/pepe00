@@ -18,6 +18,7 @@ export function AdminPanel() {
     addNovel,
     updateNovel,
     deleteNovel,
+    addNotification,
     clearNotifications,
     exportSystemBackup,
     syncWithRemote
