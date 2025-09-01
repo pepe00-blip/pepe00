@@ -1,16 +1,13 @@
 {
-  "name": "tv-a-la-carta-optimized",
+  "name": "vite-react-typescript-starter",
   "private": true,
-  "version": "2.0.0",
+  "version": "0.0.0",
   "type": "module",
-  "description": "TV a la Carta - Sistema optimizado con panel de administración",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "type-check": "tsc --noEmit",
-    "build:analyze": "vite build --mode analyze"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@types/node": "^24.2.1",

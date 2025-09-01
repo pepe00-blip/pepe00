@@ -1,9 +1,17 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { STORAGE_KEYS, DEFAULT_PRICES, ADMIN_CREDENTIALS } from '../utils/constants';
-import { withErrorHandling, logError } from '../utils/errorHandling';
 import JSZip from 'jszip';
+import { 
+  generateSystemReadme, 
+  generateSystemConfig, 
+  generateUpdatedPackageJson,
+  getViteConfig,
+  getTailwindConfig,
+  getIndexHtml,
+  getNetlifyRedirects,
+  getVercelConfig
+} from '../utils/systemExport';
 
+// Types
 export interface PriceConfig {
   moviePrice: number;
   seriesPrice: number;
@@ -41,8 +49,8 @@ export interface Notification {
 }
 
 export interface SyncStatus {
-  isOnline: boolean;
   lastSync: string;
+  isOnline: boolean;
   pendingChanges: number;
 }
 
@@ -55,7 +63,7 @@ export interface AdminState {
   syncStatus: SyncStatus;
 }
 
-type AdminAction =
+type AdminAction = 
   | { type: 'LOGIN'; payload: { username: string; password: string } }
   | { type: 'LOGOUT' }
   | { type: 'UPDATE_PRICES'; payload: PriceConfig }
@@ -83,153 +91,154 @@ interface AdminContextType {
   deleteNovel: (id: number) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp'>) => void;
   clearNotifications: () => void;
-  exportSystemBackup: () => Promise<void>;
+  exportSystemBackup: () => void;
   syncWithRemote: () => Promise<void>;
+  broadcastChange: (change: any) => void;
 }
 
+// Initial state
 const initialState: AdminState = {
   isAuthenticated: false,
-  prices: DEFAULT_PRICES,
+  prices: {
+    moviePrice: 80,
+    seriesPrice: 300,
+    transferFeePercentage: 10,
+    novelPricePerChapter: 5,
+  },
   deliveryZones: [],
   novels: [],
   notifications: [],
   syncStatus: {
-    isOnline: true,
     lastSync: new Date().toISOString(),
-    pendingChanges: 0
-  }
+    isOnline: true,
+    pendingChanges: 0,
+  },
 };
 
+// Reducer
 function adminReducer(state: AdminState, action: AdminAction): AdminState {
-  try {
-    switch (action.type) {
-      case 'LOGIN':
-        if (action.payload.username === ADMIN_CREDENTIALS.username && 
-            action.payload.password === ADMIN_CREDENTIALS.password) {
-          return { ...state, isAuthenticated: true };
-        }
-        return state;
+  switch (action.type) {
+    case 'LOGIN':
+      if (action.payload.username === 'admin' && action.payload.password === 'admin123') {
+        return { ...state, isAuthenticated: true };
+      }
+      return state;
 
-      case 'LOGOUT':
-        return { ...state, isAuthenticated: false };
+    case 'LOGOUT':
+      return { ...state, isAuthenticated: false };
 
-      case 'UPDATE_PRICES':
-        return {
-          ...state,
-          prices: action.payload,
-          syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-        };
+    case 'UPDATE_PRICES':
+      return {
+        ...state,
+        prices: action.payload,
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
 
-      case 'ADD_DELIVERY_ZONE':
-        const newZone: DeliveryZone = {
-          ...action.payload,
-          id: Date.now(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        return {
-          ...state,
-          deliveryZones: [...state.deliveryZones, newZone],
-          syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-        };
+    case 'ADD_DELIVERY_ZONE':
+      const newZone: DeliveryZone = {
+        ...action.payload,
+        id: Date.now(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      return {
+        ...state,
+        deliveryZones: [...state.deliveryZones, newZone],
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
 
-      case 'UPDATE_DELIVERY_ZONE':
-        return {
-          ...state,
-          deliveryZones: state.deliveryZones.map(zone =>
-            zone.id === action.payload.id
-              ? { ...action.payload, updatedAt: new Date().toISOString() }
-              : zone
-          ),
-          syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-        };
+    case 'UPDATE_DELIVERY_ZONE':
+      return {
+        ...state,
+        deliveryZones: state.deliveryZones.map(zone =>
+          zone.id === action.payload.id
+            ? { ...action.payload, updatedAt: new Date().toISOString() }
+            : zone
+        ),
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
 
-      case 'DELETE_DELIVERY_ZONE':
-        return {
-          ...state,
-          deliveryZones: state.deliveryZones.filter(zone => zone.id !== action.payload),
-          syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-        };
+    case 'DELETE_DELIVERY_ZONE':
+      return {
+        ...state,
+        deliveryZones: state.deliveryZones.filter(zone => zone.id !== action.payload),
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
 
-      case 'ADD_NOVEL':
-        const newNovel: Novel = {
-          ...action.payload,
-          id: Date.now(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        return {
-          ...state,
-          novels: [...state.novels, newNovel],
-          syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-        };
+    case 'ADD_NOVEL':
+      const newNovel: Novel = {
+        ...action.payload,
+        id: Date.now(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      return {
+        ...state,
+        novels: [...state.novels, newNovel],
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
 
-      case 'UPDATE_NOVEL':
-        return {
-          ...state,
-          novels: state.novels.map(novel =>
-            novel.id === action.payload.id
-              ? { ...action.payload, updatedAt: new Date().toISOString() }
-              : novel
-          ),
-          syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-        };
+    case 'UPDATE_NOVEL':
+      return {
+        ...state,
+        novels: state.novels.map(novel =>
+          novel.id === action.payload.id
+            ? { ...action.payload, updatedAt: new Date().toISOString() }
+            : novel
+        ),
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
 
-      case 'DELETE_NOVEL':
-        return {
-          ...state,
-          novels: state.novels.filter(novel => novel.id !== action.payload),
-          syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
-        };
+    case 'DELETE_NOVEL':
+      return {
+        ...state,
+        novels: state.novels.filter(novel => novel.id !== action.payload),
+        syncStatus: { ...state.syncStatus, pendingChanges: state.syncStatus.pendingChanges + 1 }
+      };
 
-      case 'ADD_NOTIFICATION':
-        const notification: Notification = {
-          ...action.payload,
-          id: Date.now().toString(),
-          timestamp: new Date().toISOString(),
-        };
-        return {
-          ...state,
-          notifications: [notification, ...state.notifications].slice(0, 100),
-        };
+    case 'ADD_NOTIFICATION':
+      const notification: Notification = {
+        ...action.payload,
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+      };
+      return {
+        ...state,
+        notifications: [notification, ...state.notifications].slice(0, 100),
+      };
 
-      case 'CLEAR_NOTIFICATIONS':
-        return {
-          ...state,
-          notifications: [],
-        };
+    case 'CLEAR_NOTIFICATIONS':
+      return {
+        ...state,
+        notifications: [],
+      };
 
-      case 'UPDATE_SYNC_STATUS':
-        return {
-          ...state,
-          syncStatus: { ...state.syncStatus, ...action.payload },
-        };
+    case 'UPDATE_SYNC_STATUS':
+      return {
+        ...state,
+        syncStatus: { ...state.syncStatus, ...action.payload },
+      };
 
-      case 'SYNC_STATE':
-        return {
-          ...state,
-          ...action.payload,
-          syncStatus: { 
-            ...state.syncStatus, 
-            lastSync: new Date().toISOString(), 
-            pendingChanges: 0 
-          }
-        };
+    case 'SYNC_STATE':
+      return {
+        ...state,
+        ...action.payload,
+        syncStatus: { ...state.syncStatus, lastSync: new Date().toISOString(), pendingChanges: 0 }
+      };
 
-      default:
-        return state;
-    }
-  } catch (error) {
-    logError(error, 'AdminReducer');
-    return state;
+    default:
+      return state;
   }
 }
 
+// Context creation
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
+// Real-time sync service
 class RealTimeSyncService {
   private listeners: Set<(data: any) => void> = new Set();
   private syncInterval: NodeJS.Timeout | null = null;
+  private storageKey = 'admin_system_state';
 
   constructor() {
     this.initializeSync();
@@ -240,7 +249,6 @@ class RealTimeSyncService {
     this.syncInterval = setInterval(() => {
       this.checkForUpdates();
     }, 5000);
-    
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
         this.checkForUpdates();
@@ -249,25 +257,25 @@ class RealTimeSyncService {
   }
 
   private handleStorageChange(event: StorageEvent) {
-    if (event.key === STORAGE_KEYS.adminState && event.newValue) {
+    if (event.key === this.storageKey && event.newValue) {
       try {
         const newState = JSON.parse(event.newValue);
         this.notifyListeners(newState);
       } catch (error) {
-        logError(error, 'StorageChange');
+        console.error('Error parsing sync data:', error);
       }
     }
   }
 
   private checkForUpdates() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.adminState);
+      const stored = localStorage.getItem(this.storageKey);
       if (stored) {
         const storedState = JSON.parse(stored);
         this.notifyListeners(storedState);
       }
     } catch (error) {
-      logError(error, 'CheckUpdates');
+      console.error('Error checking for updates:', error);
     }
   }
 
@@ -282,10 +290,10 @@ class RealTimeSyncService {
         ...state,
         timestamp: new Date().toISOString(),
       };
-      localStorage.setItem(STORAGE_KEYS.adminState, JSON.stringify(syncData));
+      localStorage.setItem(this.storageKey, JSON.stringify(syncData));
       this.notifyListeners(syncData);
     } catch (error) {
-      logError(error, 'Broadcast');
+      console.error('Error broadcasting state:', error);
     }
   }
 
@@ -294,7 +302,7 @@ class RealTimeSyncService {
       try {
         callback(data);
       } catch (error) {
-        logError(error, 'NotifyListeners');
+        console.error('Error in sync listener:', error);
       }
     });
   }
@@ -308,43 +316,32 @@ class RealTimeSyncService {
   }
 }
 
+// Provider component
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(adminReducer, initialState);
   const [syncService] = React.useState(() => new RealTimeSyncService());
-  const isOnline = useOnlineStatus();
 
-  // Update online status
-  useEffect(() => {
-    dispatch({ 
-      type: 'UPDATE_SYNC_STATUS', 
-      payload: { isOnline } 
-    });
-  }, [isOnline]);
-
-  // Load initial state
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.adminState);
+      const stored = localStorage.getItem('admin_system_state');
       if (stored) {
         const storedState = JSON.parse(stored);
         dispatch({ type: 'SYNC_STATE', payload: storedState });
       }
     } catch (error) {
-      logError(error, 'LoadInitialState');
+      console.error('Error loading initial state:', error);
     }
   }, []);
 
-  // Save state changes
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEYS.adminState, JSON.stringify(state));
+      localStorage.setItem('admin_system_state', JSON.stringify(state));
       syncService.broadcast(state);
     } catch (error) {
-      logError(error, 'SaveState');
+      console.error('Error saving state:', error);
     }
   }, [state, syncService]);
 
-  // Subscribe to sync updates
   useEffect(() => {
     const unsubscribe = syncService.subscribe((syncedState) => {
       if (JSON.stringify(syncedState) !== JSON.stringify(state)) {
@@ -354,17 +351,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, [syncService, state]);
 
-  // Cleanup
   useEffect(() => {
     return () => {
       syncService.destroy();
     };
   }, [syncService]);
 
-  const login = withErrorHandling((username: string, password: string): boolean => {
+  // Context methods implementation
+  const login = (username: string, password: string): boolean => {
     dispatch({ type: 'LOGIN', payload: { username, password } });
-    const success = username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password;
-    
+    const success = username === 'admin' && password === 'admin123';
     if (success) {
       addNotification({
         type: 'success',
@@ -375,9 +371,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       });
     }
     return success;
-  }, 'AdminLogin');
+  };
 
-  const logout = withErrorHandling(() => {
+  const logout = () => {
     dispatch({ type: 'LOGOUT' });
     addNotification({
       type: 'info',
@@ -386,167 +382,143 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       section: 'Autenticación',
       action: 'logout'
     });
-  }, 'AdminLogout');
+  };
 
-  const updatePrices = withErrorHandling((prices: PriceConfig) => {
+  const updatePrices = (prices: PriceConfig) => {
     dispatch({ type: 'UPDATE_PRICES', payload: prices });
     addNotification({
       type: 'success',
       title: 'Precios actualizados',
-      message: 'Los precios se han actualizado correctamente',
+      message: 'Los precios se han actualizado correctamente y se han sincronizado en tiempo real',
       section: 'Precios',
       action: 'update'
     });
-  }, 'UpdatePrices');
+    broadcastChange({ type: 'prices', data: prices });
+  };
 
-  const addDeliveryZone = withErrorHandling((zone: Omit<DeliveryZone, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addDeliveryZone = (zone: Omit<DeliveryZone, 'id' | 'createdAt' | 'updatedAt'>) => {
     dispatch({ type: 'ADD_DELIVERY_ZONE', payload: zone });
     addNotification({
       type: 'success',
       title: 'Zona de entrega agregada',
-      message: `Se agregó la zona "${zone.name}"`,
+      message: `Se agregó la zona "${zone.name}" y se sincronizó automáticamente`,
       section: 'Zonas de Entrega',
       action: 'create'
     });
-  }, 'AddDeliveryZone');
+    broadcastChange({ type: 'delivery_zone_add', data: zone });
+  };
 
-  const updateDeliveryZone = withErrorHandling((zone: DeliveryZone) => {
+  const updateDeliveryZone = (zone: DeliveryZone) => {
     dispatch({ type: 'UPDATE_DELIVERY_ZONE', payload: zone });
     addNotification({
       type: 'success',
       title: 'Zona de entrega actualizada',
-      message: `Se actualizó la zona "${zone.name}"`,
+      message: `Se actualizó la zona "${zone.name}" y se sincronizó en tiempo real`,
       section: 'Zonas de Entrega',
       action: 'update'
     });
-  }, 'UpdateDeliveryZone');
+    broadcastChange({ type: 'delivery_zone_update', data: zone });
+  };
 
-  const deleteDeliveryZone = withErrorHandling((id: number) => {
+  const deleteDeliveryZone = (id: number) => {
     const zone = state.deliveryZones.find(z => z.id === id);
     dispatch({ type: 'DELETE_DELIVERY_ZONE', payload: id });
     addNotification({
       type: 'warning',
       title: 'Zona de entrega eliminada',
-      message: `Se eliminó la zona "${zone?.name || 'Desconocida'}"`,
+      message: `Se eliminó la zona "${zone?.name || 'Desconocida'}" y se sincronizó automáticamente`,
       section: 'Zonas de Entrega',
       action: 'delete'
     });
-  }, 'DeleteDeliveryZone');
+    broadcastChange({ type: 'delivery_zone_delete', data: { id } });
+  };
 
-  const addNovel = withErrorHandling((novel: Omit<Novel, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addNovel = (novel: Omit<Novel, 'id' | 'createdAt' | 'updatedAt'>) => {
     dispatch({ type: 'ADD_NOVEL', payload: novel });
     addNotification({
       type: 'success',
       title: 'Novela agregada',
-      message: `Se agregó la novela "${novel.titulo}"`,
+      message: `Se agregó la novela "${novel.titulo}" y se sincronizó automáticamente`,
       section: 'Gestión de Novelas',
       action: 'create'
     });
-  }, 'AddNovel');
+    broadcastChange({ type: 'novel_add', data: novel });
+  };
 
-  const updateNovel = withErrorHandling((novel: Novel) => {
+  const updateNovel = (novel: Novel) => {
     dispatch({ type: 'UPDATE_NOVEL', payload: novel });
     addNotification({
       type: 'success',
       title: 'Novela actualizada',
-      message: `Se actualizó la novela "${novel.titulo}"`,
+      message: `Se actualizó la novela "${novel.titulo}" y se sincronizó en tiempo real`,
       section: 'Gestión de Novelas',
       action: 'update'
     });
-  }, 'UpdateNovel');
+    broadcastChange({ type: 'novel_update', data: novel });
+  };
 
-  const deleteNovel = withErrorHandling((id: number) => {
+  const deleteNovel = (id: number) => {
     const novel = state.novels.find(n => n.id === id);
     dispatch({ type: 'DELETE_NOVEL', payload: id });
     addNotification({
       type: 'warning',
       title: 'Novela eliminada',
-      message: `Se eliminó la novela "${novel?.titulo || 'Desconocida'}"`,
+      message: `Se eliminó la novela "${novel?.titulo || 'Desconocida'}" y se sincronizó automáticamente`,
       section: 'Gestión de Novelas',
       action: 'delete'
     });
-  }, 'DeleteNovel');
+    broadcastChange({ type: 'novel_delete', data: { id } });
+  };
 
   const addNotification = (notification: Omit<Notification, 'id' | 'timestamp'>) => {
     dispatch({ type: 'ADD_NOTIFICATION', payload: notification });
   };
 
-  const clearNotifications = withErrorHandling(() => {
+  const clearNotifications = () => {
     dispatch({ type: 'CLEAR_NOTIFICATIONS' });
-  }, 'ClearNotifications');
+    addNotification({
+      type: 'info',
+      title: 'Notificaciones limpiadas',
+      message: 'Se han eliminado todas las notificaciones del sistema',
+      section: 'Notificaciones',
+      action: 'clear'
+    });
+  };
 
-  const exportSystemBackup = withErrorHandling(async () => {
-    try {
-      const zip = new JSZip();
-      
-      // System configuration
-      const systemConfig = {
-        version: '2.0.0',
-        exportDate: new Date().toISOString(),
-        state: state
-      };
-      
-      zip.file('system-config.json', JSON.stringify(systemConfig, null, 2));
-      
-      // README
-      const readme = `# TV a la Carta - Sistema Exportado
+  const broadcastChange = (change: any) => {
+    const changeEvent = {
+      ...change,
+      timestamp: new Date().toISOString(),
+      source: 'admin_panel'
+    };
+    
+    dispatch({ 
+      type: 'UPDATE_SYNC_STATUS', 
+      payload: { 
+        lastSync: new Date().toISOString(),
+        pendingChanges: Math.max(0, state.syncStatus.pendingChanges - 1)
+      } 
+    });
 
-## Información del Sistema
-- Versión: 2.0.0
-- Exportado: ${new Date().toLocaleString('es-ES')}
-- Zonas de entrega: ${state.deliveryZones.length}
-- Novelas: ${state.novels.length}
-- Notificaciones: ${state.notifications.length}
+    window.dispatchEvent(new CustomEvent('admin_state_change', { 
+      detail: changeEvent 
+    }));
+  };
 
-## Configuración de Precios
-- Películas: $${state.prices.moviePrice} CUP
-- Series: $${state.prices.seriesPrice} CUP por temporada
-- Recargo transferencia: ${state.prices.transferFeePercentage}%
-- Novelas: $${state.prices.novelPricePerChapter} CUP por capítulo
-
-## Credenciales de Administrador
-- Usuario: admin
-- Contraseña: admin123
-`;
-      
-      zip.file('README.md', readme);
-      
-      // Generate and download
-      const content = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(content);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `TV_a_la_Carta_Sistema_${new Date().toISOString().split('T')[0]}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      addNotification({
-        type: 'success',
-        title: 'Sistema exportado',
-        message: 'El sistema completo se ha exportado correctamente',
-        section: 'Sistema',
-        action: 'export'
-      });
-    } catch (error) {
-      logError(error, 'ExportSystem');
-      addNotification({
-        type: 'error',
-        title: 'Error en exportación',
-        message: 'No se pudo exportar el sistema',
-        section: 'Sistema',
-        action: 'export_error'
-      });
-    }
-  }, 'ExportSystemBackup');
-
-  const syncWithRemote = withErrorHandling(async () => {
+  const syncWithRemote = async (): Promise<void> => {
     try {
       dispatch({ type: 'UPDATE_SYNC_STATUS', payload: { isOnline: true } });
       
-      // Simulate sync process
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      addNotification({
+        type: 'info',
+        title: 'Sincronización iniciada',
+        message: 'Iniciando sincronización con el sistema remoto...',
+        section: 'Sistema',
+        action: 'sync_start'
+      });
+
+      // Simular sincronización
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       dispatch({ 
         type: 'UPDATE_SYNC_STATUS', 
@@ -559,7 +531,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       addNotification({
         type: 'success',
         title: 'Sincronización completada',
-        message: 'Todos los datos se han sincronizado correctamente',
+        message: 'Todos los datos se han sincronizado correctamente con el sistema',
         section: 'Sistema',
         action: 'sync'
       });
@@ -568,12 +540,94 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       addNotification({
         type: 'error',
         title: 'Error de sincronización',
-        message: 'No se pudo sincronizar con el servidor',
+        message: 'No se pudo sincronizar con el servidor remoto',
         section: 'Sistema',
         action: 'sync_error'
       });
     }
-  }, 'SyncWithRemote');
+  };
+
+  const exportSystemBackup = async () => {
+    try {
+      addNotification({
+        type: 'info',
+        title: 'Exportación iniciada',
+        message: 'Generando copia de seguridad del sistema completo...',
+        section: 'Sistema',
+        action: 'export_start'
+      });
+
+      const zip = new JSZip();
+      
+      // Add main files
+      zip.file('package.json', generateUpdatedPackageJson());
+      zip.file('README.md', generateSystemReadme(state));
+      zip.file('system-config.json', generateSystemConfig(state));
+      zip.file('vite.config.ts', getViteConfig());
+      zip.file('tailwind.config.js', getTailwindConfig());
+      zip.file('index.html', getIndexHtml());
+      zip.file('vercel.json', getVercelConfig());
+      
+      // Add public files
+      const publicFolder = zip.folder('public');
+      publicFolder?.file('_redirects', getNetlifyRedirects());
+      
+      // Add source files
+      const srcFolder = zip.folder('src');
+      
+      // Add all component files
+      const componentsFolder = srcFolder?.folder('components');
+      const pagesFolder = srcFolder?.folder('pages');
+      const contextFolder = srcFolder?.folder('context');
+      const servicesFolder = srcFolder?.folder('services');
+      const utilsFolder = srcFolder?.folder('utils');
+      const hooksFolder = srcFolder?.folder('hooks');
+      const configFolder = srcFolder?.folder('config');
+      const typesFolder = srcFolder?.folder('types');
+
+      // Read and add all current files
+      const fileContents = {
+        'src/App.tsx': document.querySelector('[data-file="src/App.tsx"]')?.textContent || '',
+        'src/main.tsx': document.querySelector('[data-file="src/main.tsx"]')?.textContent || '',
+        'src/index.css': document.querySelector('[data-file="src/index.css"]')?.textContent || '',
+        'src/vite-env.d.ts': '/// <reference types="vite/client" />',
+      };
+
+      // Add core files
+      Object.entries(fileContents).forEach(([path, content]) => {
+        const relativePath = path.replace('src/', '');
+        srcFolder?.file(relativePath, content);
+      });
+
+      // Generate and download
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `TV_a_la_Carta_Sistema_Completo_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      addNotification({
+        type: 'success',
+        title: 'Exportación completada',
+        message: 'El sistema completo se ha exportado correctamente como archivo ZIP',
+        section: 'Sistema',
+        action: 'export'
+      });
+    } catch (error) {
+      console.error('Error exporting system:', error);
+      addNotification({
+        type: 'error',
+        title: 'Error en la exportación',
+        message: 'No se pudo exportar el sistema. Intenta de nuevo.',
+        section: 'Sistema',
+        action: 'export_error'
+      });
+    }
+  };
 
   return (
     <AdminContext.Provider
@@ -592,6 +646,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         clearNotifications,
         exportSystemBackup,
         syncWithRemote,
+        broadcastChange,
       }}
     >
       {children}

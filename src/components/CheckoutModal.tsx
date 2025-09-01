@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { X, User, MapPin, Phone, Copy, Check, MessageCircle, Calculator, DollarSign, CreditCard } from 'lucide-react';
 import { AdminContext } from '../context/AdminContext';
-import { validateRequired, validatePhone, formatPhoneNumber } from '../utils/validation';
-import { APP_CONFIG } from '../utils/constants';
 
 export interface CustomerInfo {
   fullName: string;
@@ -87,20 +85,16 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
   // Get current transfer fee percentage with real-time updates
   const transferFeePercentage = adminContext?.state?.prices?.transferFeePercentage || 10;
 
-  const isFormValid = validateRequired(customerInfo.fullName) && 
-                     validatePhone(customerInfo.phone) && 
-                     validateRequired(customerInfo.address) &&
+  const isFormValid = customerInfo.fullName.trim() !== '' && 
+                     customerInfo.phone.trim() !== '' && 
+                     customerInfo.address.trim() !== '' &&
                      deliveryZone !== 'Por favor seleccionar su Barrio/Zona';
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    
-    // Format phone number automatically
-    const formattedValue = name === 'phone' ? formatPhoneNumber(value) : value;
-    
     setCustomerInfo(prev => ({
       ...prev,
-      [name]: formattedValue
+      [name]: value
     }));
   };
 
@@ -360,7 +354,7 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                         onChange={handleInputChange}
                         required
                         className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                        placeholder={`${APP_CONFIG.contact.phone.slice(0, 7)}XXXXX`}
+                        placeholder="+53 5XXXXXXX"
                       />
                     </div>
                     <div>

@@ -1,6 +1,4 @@
 import { OrderData, CustomerInfo } from '../components/CheckoutModal';
-import { APP_CONFIG } from './constants';
-import { formatCurrency } from './validation';
 
 export function sendOrderToWhatsApp(orderData: OrderData): void {
   const { 
@@ -116,7 +114,7 @@ export function sendOrderToWhatsApp(orderData: OrderData): void {
   message += `🌟 *¡Gracias por elegir TV a la Carta!*`;
   
   const encodedMessage = encodeURIComponent(message);
-  const phoneNumber = APP_CONFIG.contact.whatsapp;
+  const phoneNumber = '5354690878'; // Número de WhatsApp
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
   
   window.open(whatsappUrl, '_blank', 'noopener,noreferrer');

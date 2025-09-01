@@ -1,42 +1,11 @@
 import { BASE_URL, API_OPTIONS } from '../config/api';
-import { withErrorHandling, AppError } from '../utils/errorHandling';
-import { memoize } from '../utils/performance';
+import { apiService } from './api';
 import type { Movie, TVShow, MovieDetails, TVShowDetails, Video, APIResponse, Genre, Cast, CastMember } from '../types/movie';
 
 class TMDBService {
-  private async fetchData<T>(endpoint: string): Promise<T> {
-    try {
-      const response = await fetch(`${BASE_URL}${endpoint}`, API_OPTIONS);
-      if (!response.ok) {
-        throw new AppError(
-          `Error de API: ${response.status}`,
-          'API_ERROR',
-          response.status
-        );
-      }
-      return await response.json();
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError('Error de conexión con el servidor', 'NETWORK_ERROR');
-    }
+  private async fetchData<T>(endpoint: string, useCache: boolean = true): Promise<T> {
+    return apiService.fetchWithCache<T>(endpoint, useCache);
   }
-
-  // Memoized fetch for frequently accessed data
-  private fetchDataMemoized = memoize(this.fetchData.bind(this));
-
-  private async fetchWithCache<T>(endpoint: string, useCache: boolean = true): Promise<T> {
-    if (useCache) {
-      return this.fetchDataMemoized(endpoint);
-    }
-    return this.fetchData(endpoint);
-  }
-
-  // Enhanced error handling wrapper
-  private withApiErrorHandling = <T extends (...args: any[]) => any>(fn: T): T => {
-    return withErrorHandling(fn, 'TMDBService') as T;
-  };
 
   // Enhanced video fetching with better filtering
   private async getVideosWithFallback(endpoint: string): Promise<{ results: Video[] }> {
@@ -73,179 +42,133 @@ class TMDBService {
     }
   }
 
-  // Movies with enhanced error handling
+  // Movies
   async getPopularMovies(page: number = 1): Promise<APIResponse<Movie>> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/movie/popular?language=es-ES&page=${page}`, page === 1);
-    })();
+    return this.fetchData(`/movie/popular?language=es-ES&page=${page}`, page === 1);
   }
 
   async getTopRatedMovies(page: number = 1): Promise<APIResponse<Movie>> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/movie/top_rated?language=es-ES&page=${page}`, page === 1);
-    })();
+    return this.fetchData(`/movie/top_rated?language=es-ES&page=${page}`, page === 1);
   }
 
   async getUpcomingMovies(page: number = 1): Promise<APIResponse<Movie>> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchData(`/movie/upcoming?language=es-ES&page=${page}`);
-    })();
+    return this.fetchData(`/movie/upcoming?language=es-ES&page=${page}`, page === 1);
   }
 
   async searchMovies(query: string, page: number = 1): Promise<APIResponse<Movie>> {
-    return this.withApiErrorHandling(async () => {
-      const encodedQuery = encodeURIComponent(query);
-      return this.fetchData(`/search/movie?query=${encodedQuery}&language=es-ES&page=${page}`);
-    })();
+    const encodedQuery = encodeURIComponent(query);
+    return this.fetchData(`/search/movie?query=${encodedQuery}&language=es-ES&page=${page}`);
   }
 
   async getMovieDetails(id: number): Promise<MovieDetails> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/movie/${id}?language=es-ES`);
-    })();
+    return this.fetchData(`/movie/${id}?language=es-ES`, true);
   }
 
   async getMovieVideos(id: number): Promise<{ results: Video[] }> {
-    return this.withApiErrorHandling(async () => {
-      return this.getVideosWithFallback(`/movie/${id}/videos`);
-    })();
+    return this.getVideosWithFallback(`/movie/${id}/videos`);
   }
 
   async getMovieCredits(id: number): Promise<Cast> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/movie/${id}/credits?language=es-ES`);
-    })();
+    return this.fetchData(`/movie/${id}/credits?language=es-ES`, true);
   }
 
-  // TV Shows with enhanced error handling
+  // TV Shows
   async getPopularTVShows(page: number = 1): Promise<APIResponse<TVShow>> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/tv/popular?language=es-ES&page=${page}`, page === 1);
-    })();
+    return this.fetchData(`/tv/popular?language=es-ES&page=${page}`, page === 1);
   }
 
   async getTopRatedTVShows(page: number = 1): Promise<APIResponse<TVShow>> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/tv/top_rated?language=es-ES&page=${page}`, page === 1);
-    })();
+    return this.fetchData(`/tv/top_rated?language=es-ES&page=${page}`, page === 1);
   }
 
   async searchTVShows(query: string, page: number = 1): Promise<APIResponse<TVShow>> {
-    return this.withApiErrorHandling(async () => {
-      const encodedQuery = encodeURIComponent(query);
-      return this.fetchData(`/search/tv?query=${encodedQuery}&language=es-ES&page=${page}`);
-    })();
+    const encodedQuery = encodeURIComponent(query);
+    return this.fetchData(`/search/tv?query=${encodedQuery}&language=es-ES&page=${page}`);
   }
 
   async getTVShowDetails(id: number): Promise<TVShowDetails> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/tv/${id}?language=es-ES`);
-    })();
+    return this.fetchData(`/tv/${id}?language=es-ES`, true);
   }
 
   async getTVShowVideos(id: number): Promise<{ results: Video[] }> {
-    return this.withApiErrorHandling(async () => {
-      return this.getVideosWithFallback(`/tv/${id}/videos`);
-    })();
+    return this.getVideosWithFallback(`/tv/${id}/videos`);
   }
 
   async getTVShowCredits(id: number): Promise<Cast> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/tv/${id}/credits?language=es-ES`);
-    })();
+    return this.fetchData(`/tv/${id}/credits?language=es-ES`, true);
   }
 
-  // Anime with enhanced error handling
+  // Anime (using discover with Japanese origin)
   async getPopularAnime(page: number = 1): Promise<APIResponse<TVShow>> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/discover/tv?with_origin_country=JP&with_genres=16&language=es-ES&page=${page}&sort_by=popularity.desc&include_adult=false`, page === 1);
-    })();
+    return this.fetchData(`/discover/tv?with_origin_country=JP&with_genres=16&language=es-ES&page=${page}&sort_by=popularity.desc&include_adult=false`, page === 1);
   }
 
   async getTopRatedAnime(page: number = 1): Promise<APIResponse<TVShow>> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/discover/tv?with_origin_country=JP&with_genres=16&language=es-ES&page=${page}&sort_by=vote_average.desc&vote_count.gte=100&include_adult=false`, page === 1);
-    })();
+    return this.fetchData(`/discover/tv?with_origin_country=JP&with_genres=16&language=es-ES&page=${page}&sort_by=vote_average.desc&vote_count.gte=100&include_adult=false`, page === 1);
   }
 
   async searchAnime(query: string, page: number = 1): Promise<APIResponse<TVShow>> {
-    return this.withApiErrorHandling(async () => {
-      const encodedQuery = encodeURIComponent(query);
-      return this.fetchData(`/search/tv?query=${encodedQuery}&language=es-ES&page=${page}&with_genres=16&with_origin_country=JP`);
-    })();
+    const encodedQuery = encodeURIComponent(query);
+    return this.fetchData(`/search/tv?query=${encodedQuery}&language=es-ES&page=${page}&with_genres=16&with_origin_country=JP`);
   }
 
   // Enhanced anime discovery with multiple sources
   async getAnimeFromMultipleSources(page: number = 1): Promise<APIResponse<TVShow>> {
-    return this.withApiErrorHandling(async () => {
-      try {
-        const [japaneseAnime, animationGenre, koreanAnimation] = await Promise.all([
-          this.fetchWithCache<APIResponse<TVShow>>(`/discover/tv?with_origin_country=JP&with_genres=16&language=es-ES&page=${page}&sort_by=popularity.desc&include_adult=false`, page === 1),
-          this.fetchWithCache<APIResponse<TVShow>>(`/discover/tv?with_genres=16&language=es-ES&page=${page}&sort_by=popularity.desc&include_adult=false`, page === 1),
-          this.fetchWithCache<APIResponse<TVShow>>(`/discover/tv?with_origin_country=KR&with_genres=16&language=es-ES&page=${page}&sort_by=popularity.desc&include_adult=false`, page === 1)
-        ]);
+    try {
+      const [japaneseAnime, animationGenre, koreanAnimation] = await Promise.all([
+        this.fetchData<APIResponse<TVShow>>(`/discover/tv?with_origin_country=JP&with_genres=16&language=es-ES&page=${page}&sort_by=popularity.desc&include_adult=false`, page === 1),
+        this.fetchData<APIResponse<TVShow>>(`/discover/tv?with_genres=16&language=es-ES&page=${page}&sort_by=popularity.desc&include_adult=false`, page === 1),
+        this.fetchData<APIResponse<TVShow>>(`/discover/tv?with_origin_country=KR&with_genres=16&language=es-ES&page=${page}&sort_by=popularity.desc&include_adult=false`, page === 1)
+      ]);
 
-        // Combine and remove duplicates
-        const combinedResults = [
-          ...japaneseAnime.results,
-          ...animationGenre.results.filter(item => 
-            !japaneseAnime.results.some(jp => jp.id === item.id)
-          ),
-          ...koreanAnimation.results.filter(item => 
-            !japaneseAnime.results.some(jp => jp.id === item.id) &&
-            !animationGenre.results.some(an => an.id === item.id)
-          )
-        ];
+      // Combine and remove duplicates
+      const combinedResults = [
+        ...japaneseAnime.results,
+        ...animationGenre.results.filter(item => 
+          !japaneseAnime.results.some(jp => jp.id === item.id)
+        ),
+        ...koreanAnimation.results.filter(item => 
+          !japaneseAnime.results.some(jp => jp.id === item.id) &&
+          !animationGenre.results.some(an => an.id === item.id)
+        )
+      ];
 
-        return {
-          ...japaneseAnime,
-          results: this.removeDuplicates(combinedResults)
-        };
-      } catch (error) {
-        console.error('Error fetching anime from multiple sources:', error);
-        return this.getPopularAnime(page);
-      }
-    })();
+      return {
+        ...japaneseAnime,
+        results: this.removeDuplicates(combinedResults)
+      };
+    } catch (error) {
+      console.error('Error fetching anime from multiple sources:', error);
+      return this.getPopularAnime(page);
+    }
   }
 
   // Genres
   async getMovieGenres(): Promise<{ genres: Genre[] }> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache('/genre/movie/list?language=es-ES');
-    })();
+    return this.fetchData('/genre/movie/list?language=es-ES', true);
   }
 
   async getTVGenres(): Promise<{ genres: Genre[] }> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache('/genre/tv/list?language=es-ES');
-    })();
+    return this.fetchData('/genre/tv/list?language=es-ES', true);
   }
 
   // Multi search
   async searchMulti(query: string, page: number = 1): Promise<APIResponse<Movie | TVShow>> {
-    return this.withApiErrorHandling(async () => {
-      const encodedQuery = encodeURIComponent(query);
-      return this.fetchData(`/search/multi?query=${encodedQuery}&language=es-ES&page=${page}`);
-    })();
+    const encodedQuery = encodeURIComponent(query);
+    return this.fetchData(`/search/multi?query=${encodedQuery}&language=es-ES&page=${page}`);
   }
 
   // Trending content - synchronized with TMDB
   async getTrendingAll(timeWindow: 'day' | 'week' = 'day', page: number = 1): Promise<APIResponse<Movie | TVShow>> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/trending/all/${timeWindow}?language=es-ES&page=${page}`, page === 1);
-    })();
+    return this.fetchData(`/trending/all/${timeWindow}?language=es-ES&page=${page}`, page === 1);
   }
 
   async getTrendingMovies(timeWindow: 'day' | 'week' = 'day', page: number = 1): Promise<APIResponse<Movie>> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/trending/movie/${timeWindow}?language=es-ES&page=${page}`, page === 1);
-    })();
+    return this.fetchData(`/trending/movie/${timeWindow}?language=es-ES&page=${page}`, page === 1);
   }
 
   async getTrendingTV(timeWindow: 'day' | 'week' = 'day', page: number = 1): Promise<APIResponse<TVShow>> {
-    return this.withApiErrorHandling(async () => {
-      return this.fetchWithCache(`/trending/tv/${timeWindow}?language=es-ES&page=${page}`, page === 1);
-    })();
+    return this.fetchData(`/trending/tv/${timeWindow}?language=es-ES&page=${page}`, page === 1);
   }
 
   // Enhanced content discovery methods
@@ -295,64 +218,75 @@ class TMDBService {
 
   // Get fresh trending content for hero carousel (no duplicates)
   async getHeroContent(): Promise<(Movie | TVShow)[]> {
-    return this.withApiErrorHandling(async () => {
-      try {
-        const [trendingDay, trendingWeek, popularMovies, popularTV] = await Promise.all([
-          this.getTrendingAll('day', 1),
-          this.getTrendingAll('week', 1),
-          this.getPopularMovies(1),
-          this.getPopularTVShows(1)
-        ]);
+    try {
+      const [trendingDay, trendingWeek, popularMovies, popularTV] = await Promise.all([
+        this.getTrendingAll('day', 1),
+        this.getTrendingAll('week', 1),
+        this.getPopularMovies(1),
+        this.getPopularTVShows(1)
+      ]);
 
-        // Combine and prioritize trending content
-        const combinedItems = [
-          ...trendingDay.results.slice(0, 8),
-          ...trendingWeek.results.slice(0, 4),
-          ...popularMovies.results.slice(0, 3),
-          ...popularTV.results.slice(0, 3)
-        ];
+      // Combine and prioritize trending content
+      const combinedItems = [
+        ...trendingDay.results.slice(0, 8),
+        ...trendingWeek.results.slice(0, 4),
+        ...popularMovies.results.slice(0, 3),
+        ...popularTV.results.slice(0, 3)
+      ];
 
-        // Remove duplicates and return top items
-        return this.removeDuplicates(combinedItems).slice(0, 10);
-      } catch (error) {
-        throw new AppError('Error al cargar contenido destacado', 'HERO_CONTENT_ERROR');
-      }
-    })();
+      // Remove duplicates and return top items
+      return this.removeDuplicates(combinedItems).slice(0, 10);
+    } catch (error) {
+      console.error('Error fetching hero content:', error);
+      return [];
+    }
   }
 
-  // Batch fetch videos for multiple items with enhanced error handling
+  // Batch fetch videos for multiple items
   async batchFetchVideos(items: { id: number; type: 'movie' | 'tv' }[]): Promise<Map<string, Video[]>> {
-    return this.withApiErrorHandling(async () => {
-      const videoMap = new Map<string, Video[]>();
-      
-      try {
-        const videoPromises = items.map(async (item) => {
-          const key = `${item.type}-${item.id}`;
-          try {
-            const videos = item.type === 'movie' 
-              ? await this.getMovieVideos(item.id)
-              : await this.getTVShowVideos(item.id);
-            
-            const trailers = videos.results.filter(
-              video => video.site === 'YouTube' && (video.type === 'Trailer' || video.type === 'Teaser')
-            );
-            
-            return { key, videos: trailers };
-          } catch (error) {
-            return { key, videos: [] };
-          }
-        });
+    const videoMap = new Map<string, Video[]>();
+    
+    try {
+      const videoPromises = items.map(async (item) => {
+        const key = `${item.type}-${item.id}`;
+        try {
+          const videos = item.type === 'movie' 
+            ? await this.getMovieVideos(item.id)
+            : await this.getTVShowVideos(item.id);
+          
+          const trailers = videos.results.filter(
+            video => video.site === 'YouTube' && (video.type === 'Trailer' || video.type === 'Teaser')
+          );
+          
+          return { key, videos: trailers };
+        } catch (error) {
+          console.error(`Error fetching videos for ${key}:`, error);
+          return { key, videos: [] };
+        }
+      });
 
-        const results = await Promise.all(videoPromises);
-        results.forEach(({ key, videos }) => {
-          videoMap.set(key, videos);
-        });
-      } catch (error) {
-        throw new AppError('Error al cargar videos', 'BATCH_VIDEOS_ERROR');
-      }
-      
-      return videoMap;
-    })();
+      const results = await Promise.all(videoPromises);
+      results.forEach(({ key, videos }) => {
+        videoMap.set(key, videos);
+      });
+    } catch (error) {
+      console.error('Error in batch fetch videos:', error);
+    }
+    
+    return videoMap;
+  }
+
+  // Clear API cache
+  clearCache(): void {
+    apiService.clearCache();
+  }
+
+  // Get cache statistics
+  getCacheStats(): { size: number; items: { key: string; age: number }[] } {
+    return {
+      size: apiService.getCacheSize(),
+      items: apiService.getCacheInfo()
+    };
   }
 
   // Enhanced sync method for better content freshness
@@ -362,57 +296,56 @@ class TMDBService {
     anime: TVShow[];
     trending: (Movie | TVShow)[];
   }> {
-    return this.withApiErrorHandling(async () => {
-      try {
-        const [
-          popularMovies,
-          topRatedMovies,
-          upcomingMovies,
-          popularTV,
-          topRatedTV,
-          popularAnime,
-          topRatedAnime,
-          trendingDay,
-          trendingWeek
-        ] = await Promise.all([
-          this.getPopularMovies(1),
-          this.getTopRatedMovies(1),
-          this.getUpcomingMovies(1),
-          this.getPopularTVShows(1),
-          this.getTopRatedTVShows(1),
-          this.getAnimeFromMultipleSources(1),
-          this.getTopRatedAnime(1),
-          this.getTrendingAll('day', 1),
-          this.getTrendingAll('week', 1)
-        ]);
+    try {
+      const [
+        popularMovies,
+        topRatedMovies,
+        upcomingMovies,
+        popularTV,
+        topRatedTV,
+        popularAnime,
+        topRatedAnime,
+        trendingDay,
+        trendingWeek
+      ] = await Promise.all([
+        this.getPopularMovies(1),
+        this.getTopRatedMovies(1),
+        this.getUpcomingMovies(1),
+        this.getPopularTVShows(1),
+        this.getTopRatedTVShows(1),
+        this.getAnimeFromMultipleSources(1),
+        this.getTopRatedAnime(1),
+        this.getTrendingAll('day', 1),
+        this.getTrendingAll('week', 1)
+      ]);
 
-        // Combine and deduplicate content
-        const movies = this.removeDuplicates([
-          ...popularMovies.results,
-          ...topRatedMovies.results,
-          ...upcomingMovies.results
-        ]);
+      // Combine and deduplicate content
+      const movies = this.removeDuplicates([
+        ...popularMovies.results,
+        ...topRatedMovies.results,
+        ...upcomingMovies.results
+      ]);
 
-        const tvShows = this.removeDuplicates([
-          ...popularTV.results,
-          ...topRatedTV.results
-        ]);
+      const tvShows = this.removeDuplicates([
+        ...popularTV.results,
+        ...topRatedTV.results
+      ]);
 
-        const anime = this.removeDuplicates([
-          ...popularAnime.results,
-          ...topRatedAnime.results
-        ]);
+      const anime = this.removeDuplicates([
+        ...popularAnime.results,
+        ...topRatedAnime.results
+      ]);
 
-        const trending = this.removeDuplicates([
-          ...trendingDay.results,
-          ...trendingWeek.results
-        ]);
+      const trending = this.removeDuplicates([
+        ...trendingDay.results,
+        ...trendingWeek.results
+      ]);
 
-        return { movies, tvShows, anime, trending };
-      } catch (error) {
-        throw new AppError('Error al sincronizar contenido', 'SYNC_ALL_ERROR');
-      }
-    })();
+      return { movies, tvShows, anime, trending };
+    } catch (error) {
+      console.error('Error syncing all content:', error);
+      return { movies: [], tvShows: [], anime: [], trending: [] };
+    }
   }
 }
 

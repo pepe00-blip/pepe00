@@ -1,90 +1,93 @@
 // Performance optimization utilities
+export class PerformanceOptimizer {
+  private static instance: PerformanceOptimizer;
+  private observers: Map<string, IntersectionObserver> = new Map();
 
-export const debounce = <T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): ((...args: Parameters<T>) => void) => {
-  let timeout: NodeJS.Timeout;
-  
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
-
-export const throttle = <T extends (...args: any[]) => any>(
-  func: T,
-  limit: number
-): ((...args: Parameters<T>) => void) => {
-  let inThrottle: boolean;
-  
-  return (...args: Parameters<T>) => {
-    if (!inThrottle) {
-      func(...args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
+  static getInstance(): PerformanceOptimizer {
+    if (!PerformanceOptimizer.instance) {
+      PerformanceOptimizer.instance = new PerformanceOptimizer();
     }
-  };
-};
-
-export const memoize = <T extends (...args: any[]) => any>(fn: T): T => {
-  const cache = new Map();
-  
-  return ((...args: any[]) => {
-    const key = JSON.stringify(args);
-    if (cache.has(key)) {
-      return cache.get(key);
-    }
-    
-    const result = fn(...args);
-    cache.set(key, result);
-    return result;
-  }) as T;
-};
-
-export const lazyLoad = (importFunc: () => Promise<any>) => {
-  return React.lazy(importFunc);
-};
-
-// Image optimization
-export const optimizeImageUrl = (url: string, width?: number, height?: number): string => {
-  if (!url) return url;
-  
-  // For TMDB images, we can specify size
-  if (url.includes('image.tmdb.org')) {
-    return url;
+    return PerformanceOptimizer.instance;
   }
-  
-  // For other images, add optimization parameters
-  const separator = url.includes('?') ? '&' : '?';
-  let optimized = url;
-  
-  if (width) optimized += `${separator}w=${width}`;
-  if (height) optimized += `&h=${height}`;
-  
-  return optimized;
-};
 
-// Memory management
-export const clearUnusedCache = () => {
-  try {
-    const keys = Object.keys(localStorage);
-    const now = Date.now();
-    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
-    
-    keys.forEach(key => {
-      if (key.startsWith('cache_')) {
-        try {
-          const item = JSON.parse(localStorage.getItem(key) || '{}');
-          if (item.timestamp && (now - item.timestamp) > maxAge) {
-            localStorage.removeItem(key);
+  // Lazy loading for images
+  setupLazyLoading(): void {
+    if ('IntersectionObserver' in window) {
+      const imageObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const img = entry.target as HTMLImageElement;
+            if (img.dataset.src) {
+              img.src = img.dataset.src;
+              img.removeAttribute('data-src');
+              imageObserver.unobserve(img);
+            }
           }
-        } catch (error) {
-          localStorage.removeItem(key);
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error clearing cache:', error);
+        });
+      });
+
+      this.observers.set('images', imageObserver);
+
+      // Observe all images with data-src
+      document.querySelectorAll('img[data-src]').forEach(img => {
+        imageObserver.observe(img);
+      });
+    }
   }
-};
+
+  // Debounce function for search and other frequent operations
+  debounce<T extends (...args: any[]) => any>(
+    func: T,
+    wait: number
+  ): (...args: Parameters<T>) => void {
+    let timeout: NodeJS.Timeout;
+    return (...args: Parameters<T>) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func(...args), wait);
+    };
+  }
+
+  // Throttle function for scroll events
+  throttle<T extends (...args: any[]) => any>(
+    func: T,
+    limit: number
+  ): (...args: Parameters<T>) => void {
+    let inThrottle: boolean;
+    return (...args: Parameters<T>) => {
+      if (!inThrottle) {
+        func(...args);
+        inThrottle = true;
+        setTimeout(() => inThrottle = false, limit);
+      }
+    };
+  }
+
+  // Preload critical resources
+  preloadResource(url: string, type: 'image' | 'script' | 'style'): void {
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.href = url;
+    
+    switch (type) {
+      case 'image':
+        link.as = 'image';
+        break;
+      case 'script':
+        link.as = 'script';
+        break;
+      case 'style':
+        link.as = 'style';
+        break;
+    }
+    
+    document.head.appendChild(link);
+  }
+
+  // Clean up observers
+  cleanup(): void {
+    this.observers.forEach(observer => observer.disconnect());
+    this.observers.clear();
+  }
+}
+
+export const performanceOptimizer = PerformanceOptimizer.getInstance();
