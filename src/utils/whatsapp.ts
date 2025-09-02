@@ -55,7 +55,7 @@ export function sendOrderToWhatsApp(orderData: OrderData): void {
   if (cashItems.length > 0) {
     message += `💵 *EFECTIVO:*\n`;
     cashItems.forEach(item => {
-      const basePrice = item.type === 'movie' ? 80 : (item.selectedSeasons?.length || 1) * 300;
+      const basePrice = item.type === 'movie' ? moviePrice : (item.selectedSeasons?.length || 1) * seriesPrice;
       const emoji = item.type === 'movie' ? '🎬' : '📺';
       message += `  ${emoji} ${item.title}: $${basePrice.toLocaleString()} CUP\n`;
     });
@@ -63,10 +63,10 @@ export function sendOrderToWhatsApp(orderData: OrderData): void {
   }
   
   if (transferItems.length > 0) {
-    message += `🏦 *TRANSFERENCIA (+10%):*\n`;
+    message += `🏦 *TRANSFERENCIA (+${transferFeePercentage}%):*\n`;
     transferItems.forEach(item => {
-      const basePrice = item.type === 'movie' ? 80 : (item.selectedSeasons?.length || 1) * 300;
-      const finalPrice = Math.round(basePrice * 1.1);
+      const basePrice = item.type === 'movie' ? moviePrice : (item.selectedSeasons?.length || 1) * seriesPrice;
+      const finalPrice = Math.round(basePrice * (1 + transferFeePercentage / 100));
       const emoji = item.type === 'movie' ? '🎬' : '📺';
       message += `  ${emoji} ${item.title}: $${basePrice.toLocaleString()} → $${finalPrice.toLocaleString()} CUP\n`;
     });
@@ -83,7 +83,7 @@ export function sendOrderToWhatsApp(orderData: OrderData): void {
   message += `• *Subtotal Contenido: $${subtotal.toLocaleString()} CUP*\n`;
   
   if (transferFee > 0) {
-    message += `• Recargo transferencia (10%): +$${transferFee.toLocaleString()} CUP\n`;
+    message += `• Recargo transferencia (${transferFeePercentage}%): +$${transferFee.toLocaleString()} CUP\n`;
   }
   
   message += `🚚 Entrega (${deliveryZone.split(' > ')[2]}): +$${deliveryCost.toLocaleString()} CUP\n`;
