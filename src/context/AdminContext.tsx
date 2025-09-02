@@ -559,9 +559,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
       const zip = new JSZip();
       
-      // Import the export helpers
-      const { generateSourceFiles } = await import('../utils/exportHelpers');
-      
       // Add main files
       zip.file('package.json', generateUpdatedPackageJson());
       zip.file('README.md', generateSystemReadme(state));
@@ -575,12 +572,68 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       const publicFolder = zip.folder('public');
       publicFolder?.file('_redirects', getNetlifyRedirects());
       
-      // Generate and add all source files with current state
-      const sourceFiles = generateSourceFiles(state);
+      // Add source files
+      const srcFolder = zip.folder('src');
       
-      Object.entries(sourceFiles).forEach(([filePath, content]) => {
-        zip.file(filePath, content);
-      });
+      // Add main source files
+      srcFolder?.file('main.tsx', getMainTsxSource());
+      srcFolder?.file('index.css', getIndexCssSource());
+      srcFolder?.file('App.tsx', getAppTsxSource());
+      srcFolder?.file('vite-env.d.ts', '/// <reference types="vite/client" />');
+      
+      // Add context files
+      const contextFolder = srcFolder?.folder('context');
+      contextFolder?.file('AdminContext.tsx', getAdminContextSource(state));
+      contextFolder?.file('CartContext.tsx', getCartContextSource(state));
+      
+      // Add component files
+      const componentsFolder = srcFolder?.folder('components');
+      componentsFolder?.file('CheckoutModal.tsx', getCheckoutModalSource(state));
+      componentsFolder?.file('PriceCard.tsx', getPriceCardSource(state));
+      componentsFolder?.file('NovelasModal.tsx', getNovelasModalSource(state));
+      componentsFolder?.file('Toast.tsx', getToastSource());
+      componentsFolder?.file('OptimizedImage.tsx', getOptimizedImageSource());
+      componentsFolder?.file('LoadingSpinner.tsx', getLoadingSpinnerSource());
+      componentsFolder?.file('ErrorMessage.tsx', getErrorMessageSource());
+      
+      // Add utils folder
+      const utilsFolder = srcFolder?.folder('utils');
+      utilsFolder?.file('systemExport.ts', getSystemExportSource());
+      utilsFolder?.file('whatsapp.ts', getWhatsAppUtilsSource());
+      utilsFolder?.file('performance.ts', getPerformanceUtilsSource());
+      utilsFolder?.file('errorHandler.ts', getErrorHandlerSource());
+      
+      // Add services folder
+      const servicesFolder = srcFolder?.folder('services');
+      servicesFolder?.file('tmdb.ts', getTmdbServiceSource());
+      servicesFolder?.file('api.ts', getApiServiceSource());
+      servicesFolder?.file('contentSync.ts', getContentSyncSource());
+      
+      // Add config folder
+      const configFolder = srcFolder?.folder('config');
+      configFolder?.file('api.ts', getApiConfigSource());
+      
+      // Add types folder
+      const typesFolder = srcFolder?.folder('types');
+      typesFolder?.file('movie.ts', getMovieTypesSource());
+      
+      // Add hooks folder
+      const hooksFolder = srcFolder?.folder('hooks');
+      hooksFolder?.file('useOptimizedContent.ts', getOptimizedContentHookSource());
+      hooksFolder?.file('usePerformance.ts', getPerformanceHookSource());
+      hooksFolder?.file('useContentSync.ts', getContentSyncHookSource());
+      
+      // Add pages folder
+      const pagesFolder = srcFolder?.folder('pages');
+      pagesFolder?.file('Home.tsx', getHomePageSource());
+      pagesFolder?.file('Movies.tsx', getMoviesPageSource());
+      pagesFolder?.file('TVShows.tsx', getTVShowsPageSource());
+      pagesFolder?.file('Anime.tsx', getAnimePageSource());
+      pagesFolder?.file('Search.tsx', getSearchPageSource());
+      pagesFolder?.file('Cart.tsx', getCartPageSource());
+      pagesFolder?.file('MovieDetail.tsx', getMovieDetailPageSource());
+      pagesFolder?.file('TVDetail.tsx', getTVDetailPageSource());
+      pagesFolder?.file('AdminPanel.tsx', getAdminPanelSource());
 
       // Generate and download
       const blob = await zip.generateAsync({ type: 'blob' });

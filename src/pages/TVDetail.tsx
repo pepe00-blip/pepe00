@@ -8,11 +8,13 @@ import { CastSection } from '../components/CastSection';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { useCart } from '../context/CartContext';
+import { AdminContext } from '../context/AdminContext';
 import { IMAGE_BASE_URL, BACKDROP_SIZE } from '../config/api';
 import type { TVShowDetails, Video, CartItem, Season, CastMember } from '../types/movie';
 
 export function TVDetail() {
   const { id } = useParams<{ id: string }>();
+  const adminContext = React.useContext(AdminContext);
   const [tvShow, setTVShow] = useState<TVShowDetails | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [cast, setCast] = useState<CastMember[]>([]);
@@ -23,6 +25,9 @@ export function TVDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { addItem, removeItem, updateSeasons, isInCart, getItemSeasons } = useCart();
+
+  // Get current prices with real-time updates
+  const seriesPrice = adminContext?.state?.prices?.seriesPrice || 300;
 
   const tvId = parseInt(id || '0');
   const inCart = isInCart(tvId);
@@ -337,6 +342,20 @@ export function TVDetail() {
                   </div>
                   Detalles de la Serie
                 </h3>
+                
+                {/* Episode count warning for series with 50+ episodes */}
+                {tvShow.number_of_episodes > 50 && (
+                  <div className="mt-4 p-3 bg-yellow-100/20 backdrop-blur-sm rounded-lg border border-yellow-300/30">
+                    <div className="flex items-center mb-2">
+                      <span className="text-yellow-300 mr-2">⚠️</span>
+                      <span className="text-sm font-semibold">Información Importante</span>
+                    </div>
+                    <p className="text-xs text-yellow-100 leading-relaxed">
+                      Esta serie tiene {tvShow.number_of_episodes} episodios. Hasta 50 episodios se contempla como una temporada (${seriesPrice} CUP). 
+                      Para más episodios, contacte con TV a la Carta para información adicional.
+                    </p>
+                  </div>
+                )}
               </div>
               
               <div className="p-6">
@@ -520,7 +539,16 @@ export function TVDetail() {
                     </div>
                     <h3 className="font-semibold text-gray-900">Episodios</h3>
                   </div>
-                  <p className="text-gray-700 font-medium ml-11">{tvShow.number_of_episodes}</p>
+                  <div className="ml-11">
+                    <p className="text-gray-700 font-medium">{tvShow.number_of_episodes}</p>
+                    {tvShow.number_of_episodes > 50 && (
+                      <div className="mt-2 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
+                        <p className="text-xs text-yellow-700 font-medium">
+                          ⚠️ Más de 50 episodios: Consultar condiciones especiales
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 hover:border-indigo-200 transition-colors">
