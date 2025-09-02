@@ -91,7 +91,7 @@ export function PriceCard({ type, selectedSeasons = [], episodeCount = 0, isAnim
             </span>
           </div>
           <div className="text-xs text-orange-600">
-            +${transferFeePercentage}% recargo bancario
+            +{transferFeePercentage}% recargo bancario
           </div>
         </div>
         
