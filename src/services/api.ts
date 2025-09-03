@@ -3,14 +3,16 @@ import { BASE_URL, API_OPTIONS } from '../config/api';
 
 export class APIService {
   private cache = new Map<string, { data: any; timestamp: number }>();
-  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes for regular content
+  private readonly FRESH_CACHE_DURATION = 15 * 60 * 1000; // 15 minutes for trending/current content
 
   async fetchWithCache<T>(endpoint: string, useCache: boolean = true): Promise<T> {
     const cacheKey = endpoint;
+    const cacheDuration = this.getCacheDuration(endpoint);
     
     if (useCache && this.cache.has(cacheKey)) {
       const cached = this.cache.get(cacheKey)!;
-      const isExpired = Date.now() - cached.timestamp > this.CACHE_DURATION;
+      const isExpired = Date.now() - cached.timestamp > cacheDuration;
       
       if (!isExpired) {
         return cached.data;
@@ -55,8 +57,32 @@ export class APIService {
     }
   }
 
+  private getCacheDuration(endpoint: string): number {
+    // Use shorter cache for trending, popular, and current content
+    if (endpoint.includes('/trending') || 
+        endpoint.includes('/now_playing') || 
+        endpoint.includes('/airing_today') || 
+        endpoint.includes('/on_the_air') ||
+        endpoint.includes('/popular')) {
+      return this.FRESH_CACHE_DURATION;
+    }
+    return this.CACHE_DURATION;
+  }
+
   clearCache(): void {
     this.cache.clear();
+    
+    // Also clear localStorage caches
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('fresh_') || 
+          key.includes('trending') || 
+          key.includes('popular') || 
+          key.includes('now_playing') || 
+          key.includes('airing')) {
+        localStorage.removeItem(key);
+      }
+    });
   }
 
   getCacheSize(): number {

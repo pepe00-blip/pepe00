@@ -40,6 +40,9 @@ export function AdminPanel() {
       // Clear API cache
       tmdbService.clearCache();
       
+      // Force refresh all TMDB content
+      await tmdbService.forceRefreshAllContent();
+      
       // Optimize performance
       optimizePerformance();
       
@@ -47,7 +50,7 @@ export function AdminPanel() {
       addNotification({
         type: 'success',
         title: 'Sistema optimizado',
-        message: 'Se ha optimizado el rendimiento del sistema y limpiado la caché',
+        message: 'Se ha optimizado el rendimiento del sistema, limpiado la caché y actualizado el contenido de TMDB',
         section: 'Sistema',
         action: 'optimize'
       });
