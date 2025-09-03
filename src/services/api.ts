@@ -21,6 +21,11 @@ export class APIService {
       const response = await fetch(`${BASE_URL}${endpoint}`, API_OPTIONS);
       
       if (!response.ok) {
+        // Handle 404 errors gracefully for video endpoints
+        if (response.status === 404 && endpoint.includes('/videos')) {
+          console.warn(`Videos not found for endpoint: ${endpoint}`);
+          return { results: [] } as T;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
@@ -33,6 +38,12 @@ export class APIService {
       return data;
     } catch (error) {
       console.error(`API Error for ${endpoint}:`, error);
+      
+      // Handle video endpoints specifically
+      if (endpoint.includes('/videos')) {
+        console.warn(`Returning empty videos for ${endpoint}`);
+        return { results: [] } as T;
+      }
       
       // Return cached data if available, even if expired
       if (this.cache.has(cacheKey)) {

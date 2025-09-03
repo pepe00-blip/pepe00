@@ -95,23 +95,29 @@ class ContentSyncService {
         ...animeRes.results.slice(0, 10).map(anime => ({ id: anime.id, type: 'tv' as const }))
       ];
 
-      // Batch fetch videos
-      const videoMap = await tmdbService.batchFetchVideos(items);
-      
-      // Store video data
-      const videoData: { [key: string]: any[] } = {};
-      videoMap.forEach((videos, key) => {
-        videoData[key] = videos;
-      });
+      // Batch fetch videos with error handling
+      try {
+        const videoMap = await tmdbService.batchFetchVideos(items);
+        
+        // Store video data
+        const videoData: { [key: string]: any[] } = {};
+        videoMap.forEach((videos, key) => {
+          videoData[key] = videos;
+        });
 
-      localStorage.setItem('content_videos', JSON.stringify({
-        videos: videoData,
-        lastUpdate: new Date().toISOString()
-      }));
+        localStorage.setItem('content_videos', JSON.stringify({
+          videos: videoData,
+          lastUpdate: new Date().toISOString()
+        }));
 
-      console.log(`Synced videos for ${items.length} items`);
+        console.log(`Synced videos for ${items.length} items`);
+      } catch (videoError) {
+        console.warn('Some videos could not be synced:', videoError);
+        // Continue without failing the entire sync
+      }
     } catch (error) {
       console.error('Error syncing videos:', error);
+      // Don't throw, just log the error
     }
   }
 

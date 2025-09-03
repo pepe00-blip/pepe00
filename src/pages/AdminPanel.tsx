@@ -18,6 +18,7 @@ export function AdminPanel() {
     addNovel,
     updateNovel,
     deleteNovel,
+    addNotification,
     clearNotifications,
     exportSystemBackup,
     syncWithRemote
@@ -43,7 +44,7 @@ export function AdminPanel() {
       optimizePerformance();
       
       // Add notification
-      adminContext?.addNotification({
+      addNotification({
         type: 'success',
         title: 'Sistema optimizado',
         message: 'Se ha optimizado el rendimiento del sistema y limpiado la caché',
@@ -51,7 +52,7 @@ export function AdminPanel() {
         action: 'optimize'
       });
     } catch (error) {
-      adminContext?.addNotification({
+      addNotification({
         type: 'error',
         title: 'Error en optimización',
         message: 'No se pudo optimizar el sistema completamente',

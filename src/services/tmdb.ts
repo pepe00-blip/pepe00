@@ -10,32 +10,48 @@ class TMDBService {
   // Enhanced video fetching with better filtering
   private async getVideosWithFallback(endpoint: string): Promise<{ results: Video[] }> {
     try {
-      // Try Spanish first
-      const spanishVideos = await this.fetchData<{ results: Video[] }>(`${endpoint}?language=es-ES`);
+      // Try Spanish first with error handling
+      try {
+        const spanishVideos = await this.fetchData<{ results: Video[] }>(`${endpoint}?language=es-ES`);
+        
+        if (spanishVideos.results && spanishVideos.results.length > 0) {
+          // If Spanish videos exist but no trailers, try to combine with English
+          const spanishTrailers = spanishVideos.results.filter(
+            video => video.site === 'YouTube' && (video.type === 'Trailer' || video.type === 'Teaser')
+          );
+          
+          if (spanishTrailers.length === 0) {
+            try {
+              const englishVideos = await this.fetchData<{ results: Video[] }>(`${endpoint}?language=en-US`);
+              const englishTrailers = englishVideos.results.filter(
+                video => video.site === 'YouTube' && (video.type === 'Trailer' || video.type === 'Teaser')
+              );
+              
+              return {
+                results: [...spanishVideos.results, ...englishTrailers]
+              };
+            } catch (englishError) {
+              // If English also fails, return Spanish videos
+              return spanishVideos;
+            }
+          }
+          
+          return spanishVideos;
+        }
+      } catch (spanishError) {
+        // If Spanish fails, try English
+        console.warn('Spanish videos not available, trying English');
+      }
       
-      // If no Spanish videos, try English
-      if (!spanishVideos.results || spanishVideos.results.length === 0) {
+      // Try English as fallback
+      try {
         const englishVideos = await this.fetchData<{ results: Video[] }>(`${endpoint}?language=en-US`);
         return englishVideos;
+      } catch (englishError) {
+        console.warn('English videos not available either');
+        // Return empty results instead of throwing
+        return { results: [] };
       }
-      
-      // If Spanish videos exist but no trailers, combine with English
-      const spanishTrailers = spanishVideos.results.filter(
-        video => video.site === 'YouTube' && (video.type === 'Trailer' || video.type === 'Teaser')
-      );
-      
-      if (spanishTrailers.length === 0) {
-        const englishVideos = await this.fetchData<{ results: Video[] }>(`${endpoint}?language=en-US`);
-        const englishTrailers = englishVideos.results.filter(
-          video => video.site === 'YouTube' && (video.type === 'Trailer' || video.type === 'Teaser')
-        );
-        
-        return {
-          results: [...spanishVideos.results, ...englishTrailers]
-        };
-      }
-      
-      return spanishVideos;
     } catch (error) {
       console.error('Error fetching videos:', error);
       return { results: [] };
@@ -260,14 +276,17 @@ class TMDBService {
           
           return { key, videos: trailers };
         } catch (error) {
-          console.error(`Error fetching videos for ${key}:`, error);
+          console.warn(`No videos available for ${key}`);
           return { key, videos: [] };
         }
       });
 
-      const results = await Promise.all(videoPromises);
-      results.forEach(({ key, videos }) => {
-        videoMap.set(key, videos);
+      const results = await Promise.allSettled(videoPromises);
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          const { key, videos } = result.value;
+          videoMap.set(key, videos);
+        }
       });
     } catch (error) {
       console.error('Error in batch fetch videos:', error);
