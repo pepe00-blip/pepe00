@@ -78,7 +78,7 @@ export function HeroCarousel({ items }: HeroCarouselProps) {
       });
 
       const results = await Promise.allSettled(videoPromises);
-      const videosMap = results.reduce((acc, { id, videos }) => {
+      const videosMap = results.reduce((acc, result) => {
         if (result.status === 'fulfilled') {
           const { id, videos } = result.value;
           acc[id] = videos;
