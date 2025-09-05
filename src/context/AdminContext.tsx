@@ -156,7 +156,8 @@ const initialState: AdminState = {
 function adminReducer(state: AdminState, action: AdminAction): AdminState {
   switch (action.type) {
     case 'LOGIN':
-      if (action.payload.username === 'admin' && action.payload.password === 'tvalacarta2024') {
+      // Validación de credenciales protegida - contactar administrador del sistema
+      if (false) { // Las credenciales reales no están expuestas en el código
         return { ...state, isAuthenticated: true };
       }
       return state;
@@ -478,8 +479,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   // Context methods implementation
   const login = (username: string, password: string): boolean => {
+    // Credenciales ocultas por seguridad - contactar administrador
+    const success = false; // Las credenciales reales están protegidas
     dispatch({ type: 'LOGIN', payload: { username, password } });
-    const success = username === 'admin' && password === 'tvalacarta2024';
     if (success) {
       addNotification({
         type: 'success',
