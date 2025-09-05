@@ -1,39 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Settings, 
-  DollarSign, 
-  MapPin, 
-  BookOpen, 
-  Bell, 
-  Download, 
-  Upload, 
-  Sync, 
-  User, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  LogOut, 
-  Save, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Check, 
-  X, 
-  AlertCircle, 
-  Info, 
-  Zap, 
-  Activity, 
-  Database, 
-  Cloud, 
-  Shield, 
-  Smartphone, 
-  Monitor, 
-  Wifi, 
-  WifiOff,
-  Home,
-  ArrowLeft
-} from 'lucide-react';
+import { Settings, DollarSign, MapPin, BookOpen, Bell, Download, Upload, FolderSync as Sync, User, Lock, Eye, EyeOff, LogOut, Save, Plus, Edit, Trash2, Check, X, AlertCircle, Info, Zap, Activity, Database, Cloud, Shield, Smartphone, Monitor, Wifi, WifiOff, Home, ArrowLeft } from 'lucide-react';
 import { useAdmin } from '../context/AdminContext';
 import type { PriceConfig, DeliveryZone, Novel } from '../context/AdminContext';
 
