@@ -1,5 +1,6 @@
 import { BASE_URL, API_OPTIONS } from '../config/api';
 import { apiService } from './api';
+import { contentFilterService } from './contentFilter';
 import type { Movie, TVShow, MovieDetails, TVShowDetails, Video, APIResponse, Genre, Cast, CastMember } from '../types/movie';
 
 class TMDBService {
@@ -147,7 +148,7 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
@@ -166,7 +167,7 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
@@ -191,7 +192,7 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
@@ -211,7 +212,7 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
@@ -232,18 +233,27 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
-  async getMovieDetails(id: number): Promise<MovieDetails> {
+  async getMovieDetails(id: number): Promise<MovieDetails | null> {
     // Try Spanish first, fallback to English if needed
     try {
-      return await this.fetchData(`/movie/${id}?language=es-ES&append_to_response=credits,videos,images`, true);
+      const spanishDetails = await this.fetchData<MovieDetails | null>(`/movie/${id}?language=es-ES&append_to_response=credits,videos,images`, true);
+      if (spanishDetails) {
+        return spanishDetails;
+      }
     } catch (error) {
       console.warn(`Spanish details not available for movie ${id}, trying English`);
-      return this.fetchData(`/movie/${id}?language=en-US&append_to_response=credits,videos,images`, true);
     }
+    
+    const englishDetails = await this.fetchData<MovieDetails | null>(`/movie/${id}?language=en-US&append_to_response=credits,videos,images`, true);
+    if (englishDetails) {
+      return englishDetails;
+    }
+    
+    return null;
   }
 
   async getMovieVideos(id: number): Promise<{ results: Video[] }> {
@@ -251,7 +261,8 @@ class TMDBService {
   }
 
   async getMovieCredits(id: number): Promise<Cast> {
-    return this.fetchData(`/movie/${id}/credits?language=es-ES`, true);
+    const credits = await this.fetchData<Cast | null>(`/movie/${id}/credits?language=es-ES`, true);
+    return credits || { cast: [], crew: [] };
   }
 
   // TV Shows
@@ -276,7 +287,7 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
@@ -295,7 +306,7 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
@@ -315,7 +326,7 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
@@ -335,7 +346,7 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
@@ -356,18 +367,27 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
-  async getTVShowDetails(id: number): Promise<TVShowDetails> {
+  async getTVShowDetails(id: number): Promise<TVShowDetails | null> {
     // Try Spanish first, fallback to English if needed
     try {
-      return await this.fetchData(`/tv/${id}?language=es-ES&append_to_response=credits,videos,images`, true);
+      const spanishDetails = await this.fetchData<TVShowDetails | null>(`/tv/${id}?language=es-ES&append_to_response=credits,videos,images`, true);
+      if (spanishDetails) {
+        return spanishDetails;
+      }
     } catch (error) {
       console.warn(`Spanish details not available for TV show ${id}, trying English`);
-      return this.fetchData(`/tv/${id}?language=en-US&append_to_response=credits,videos,images`, true);
     }
+    
+    const englishDetails = await this.fetchData<TVShowDetails | null>(`/tv/${id}?language=en-US&append_to_response=credits,videos,images`, true);
+    if (englishDetails) {
+      return englishDetails;
+    }
+    
+    return null;
   }
 
   async getTVShowVideos(id: number): Promise<{ results: Video[] }> {
@@ -375,7 +395,8 @@ class TMDBService {
   }
 
   async getTVShowCredits(id: number): Promise<Cast> {
-    return this.fetchData(`/tv/${id}/credits?language=es-ES`, true);
+    const credits = await this.fetchData<Cast | null>(`/tv/${id}/credits?language=es-ES`, true);
+    return credits || { cast: [], crew: [] };
   }
 
   // Anime (using discover with Japanese origin)
@@ -415,7 +436,7 @@ class TMDBService {
 
       return {
         ...japaneseAnime,
-        results: this.removeDuplicates(combinedResults)
+        results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
       };
     } catch (error) {
       console.error('Error fetching anime from multiple sources:', error);
@@ -463,7 +484,7 @@ class TMDBService {
     
     return {
       ...spanishResults,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
@@ -489,16 +510,24 @@ class TMDBService {
     
     return {
       ...globalTrending,
-      results: this.removeDuplicates(combinedResults)
+      results: contentFilterService.filterContent(this.removeDuplicates(combinedResults))
     };
   }
 
   async getTrendingMovies(timeWindow: 'day' | 'week' = 'day', page: number = 1): Promise<APIResponse<Movie>> {
-    return this.fetchData(`/trending/movie/${timeWindow}?language=es-ES&page=${page}`, page === 1);
+    const response = await this.fetchData<APIResponse<Movie>>(`/trending/movie/${timeWindow}?language=es-ES&page=${page}`, page === 1);
+    return {
+      ...response,
+      results: contentFilterService.filterContent(response.results)
+    };
   }
 
   async getTrendingTV(timeWindow: 'day' | 'week' = 'day', page: number = 1): Promise<APIResponse<TVShow>> {
-    return this.fetchData(`/trending/tv/${timeWindow}?language=es-ES&page=${page}`, page === 1);
+    const response = await this.fetchData<APIResponse<TVShow>>(`/trending/tv/${timeWindow}?language=es-ES&page=${page}`, page === 1);
+    return {
+      ...response,
+      results: contentFilterService.filterContent(response.results)
+    };
   }
 
   // Enhanced content discovery methods
@@ -514,7 +543,11 @@ class TMDBService {
     if (genre) endpoint += `&with_genres=${genre}`;
     if (year) endpoint += `&year=${year}`;
     
-    return this.fetchData(endpoint);
+    const response = await this.fetchData<APIResponse<Movie>>(endpoint);
+    return {
+      ...response,
+      results: contentFilterService.filterContent(response.results)
+    };
   }
 
   async getDiscoverTVShows(params: {
@@ -531,7 +564,11 @@ class TMDBService {
     if (year) endpoint += `&first_air_date_year=${year}`;
     if (country) endpoint += `&with_origin_country=${country}`;
     
-    return this.fetchData(endpoint);
+    const response = await this.fetchData<APIResponse<TVShow>>(endpoint);
+    return {
+      ...response,
+      results: contentFilterService.filterContent(response.results)
+    };
   }
 
   // Utility method to remove duplicates from combined results
@@ -570,7 +607,7 @@ class TMDBService {
       ];
 
       // Remove duplicates and return top items
-      return this.removeDuplicates(combinedItems).slice(0, 12);
+      return contentFilterService.filterContent(this.removeDuplicates(combinedItems)).slice(0, 12);
     } catch (error) {
       console.error('Error fetching hero content:', error);
       return [];
