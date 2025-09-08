@@ -170,6 +170,26 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
     orderText += `${deliveryZone.replace(' > ', ' → ')}\n`;
     orderText += `💰 Costo de entrega: $${deliveryCost.toLocaleString()} CUP\n\n`;
     
+    // Agregar información de ubicación si es recogida en oficina central
+    if (deliveryZone.toLowerCase().includes('oficina central')) {
+      orderText += `📍 *UBICACIÓN DE TV A LA CARTA:*\n`;
+      orderText += `📍 Dirección: ${TV_A_LA_CARTA_COORDS.address}\n`;
+      orderText += `🗺️ Coordenadas: ${TV_A_LA_CARTA_COORDS.lat}, ${TV_A_LA_CARTA_COORDS.lng}\n`;
+      orderText += `🔗 Google Maps: https://www.google.com/maps/place/20%C2%B002'22.5%22N+75%C2%B050'58.8%22W/@20.0394604,-75.8495414,180m/data=!3m1!1e3!4m4!3m3!8m2!3d20.039585!4d-75.849663?entry=ttu&g_ep=EgoyMDI1MDczMC4wIKXMDSoASAFQAw%3D%3D\n`;
+      
+      if (locationInfo) {
+        orderText += `\n🚗 *INFORMACIÓN DE RUTA:*\n`;
+        orderText += `📏 Distancia: ${locationInfo.distance}\n`;
+        orderText += `⏱️ Tiempo estimado: ${locationInfo.duration}\n`;
+        orderText += `🚶 Modo de transporte: ${
+          locationInfo.mode === 'driving' ? 'Automóvil 🚗' :
+          locationInfo.mode === 'bicycling' ? 'Bicicleta 🚲' :
+          'Caminando 🚶'
+        }\n`;
+      }
+      orderText += `\n`;
+    }
+    
     orderText += `⏰ *Fecha:* ${new Date().toLocaleString('es-ES')}\n`;
     orderText += `🌟 *¡Gracias por elegir TV a la Carta!*`;
 
@@ -435,6 +455,93 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                         <div className="text-xs text-green-600 ml-11">
                           ✅ {deliveryCost > 0 ? 'Zona' : 'Modalidad'}: {deliveryZone.split(' > ')[2] || deliveryZone}
                         </div>
+                        
+                        {/* Mostrar información de ubicación para recogida en oficina central */}
+                        {deliveryZone.toLowerCase().includes('oficina central') && (
+                          <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                            <div className="flex items-center mb-3">
+                              <MapPin className="h-5 w-5 text-blue-600 mr-2" />
+                              <h4 className="font-semibold text-blue-900">Ubicación de TV a la Carta</h4>
+                            </div>
+                            
+                            <div className="space-y-3">
+                              <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                <p className="text-sm font-medium text-gray-900 mb-1">📍 Dirección:</p>
+                                <p className="text-sm text-gray-700">{TV_A_LA_CARTA_COORDS.address}</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Coordenadas: {TV_A_LA_CARTA_COORDS.lat}, {TV_A_LA_CARTA_COORDS.lng}
+                                </p>
+                              </div>
+                              
+                              <div className="flex flex-col space-y-2">
+                                <button
+                                  onClick={openGoogleMaps}
+                                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center"
+                                >
+                                  <Navigation className="h-4 w-4 mr-2" />
+                                  Ver en Google Maps
+                                </button>
+                                
+                                {customerInfo.address.trim() && (
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <p className="text-sm font-medium text-gray-900 mb-2">🚗 Calcular ruta desde tu ubicación:</p>
+                                    <div className="flex space-x-2 mb-3">
+                                      <button
+                                        onClick={() => calculateDistance('driving')}
+                                        disabled={isCalculatingDistance}
+                                        className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center"
+                                      >
+                                        <Car className="h-3 w-3 mr-1" />
+                                        Auto
+                                      </button>
+                                      <button
+                                        onClick={() => calculateDistance('bicycling')}
+                                        disabled={isCalculatingDistance}
+                                        className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center"
+                                      >
+                                        <Bike className="h-3 w-3 mr-1" />
+                                        Bici
+                                      </button>
+                                      <button
+                                        onClick={() => calculateDistance('walking')}
+                                        disabled={isCalculatingDistance}
+                                        className="flex-1 bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center"
+                                      >
+                                        <Footprints className="h-3 w-3 mr-1" />
+                                        Pie
+                                      </button>
+                                    </div>
+                                    
+                                    {isCalculatingDistance && (
+                                      <div className="flex items-center justify-center py-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-2"></div>
+                                        <span className="text-xs text-gray-600">Calculando ruta...</span>
+                                      </div>
+                                    )}
+                                    
+                                    {locationInfo && (
+                                      <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-3 border border-green-200">
+                                        <div className="flex items-center mb-2">
+                                          <Clock className="h-4 w-4 text-green-600 mr-2" />
+                                          <span className="text-sm font-semibold text-green-800">Información de Ruta</span>
+                                        </div>
+                                        <div className="space-y-1 text-xs">
+                                          <p><strong>Distancia:</strong> {locationInfo.distance}</p>
+                                          <p><strong>Tiempo estimado:</strong> {locationInfo.duration}</p>
+                                          <p><strong>Modo:</strong> {
+                                            locationInfo.mode === 'driving' ? '🚗 Automóvil' :
+                                            locationInfo.mode === 'bicycling' ? '🚲 Bicicleta' :
+                                            '🚶 Caminando'
+                                          }</p>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
