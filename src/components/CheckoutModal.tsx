@@ -64,7 +64,48 @@ interface CheckoutModalProps {
 // Base delivery zones - these will be combined with embedded zones
 const BASE_DELIVERY_ZONES = {
   'Por favor seleccionar su Barrio/Zona': 0,
+  'Entrega a Domicilio': 0,
+};
+
+// Zonas específicas de Santiago de Cuba con costos
+const SANTIAGO_DELIVERY_ZONES = {
+  // Centro de Santiago
+  'Santiago de Cuba > Centro > Parque Céspedes': 50,
+  'Santiago de Cuba > Centro > Plaza de Marte': 50,
+  'Santiago de Cuba > Centro > Calle Enramadas': 50,
+  'Santiago de Cuba > Centro > Plaza de Dolores': 50,
   
+  // Zona Norte
+  'Santiago de Cuba > Norte > Vista Alegre': 60,
+  'Santiago de Cuba > Norte > Sueño': 70,
+  'Santiago de Cuba > Norte > Los Olmos': 80,
+  'Santiago de Cuba > Norte > Altamira': 90,
+  
+  // Zona Este
+  'Santiago de Cuba > Este > Reparto Flores': 65,
+  'Santiago de Cuba > Este > Micro 9': 75,
+  'Santiago de Cuba > Este > Micro 10': 75,
+  'Santiago de Cuba > Este > Reparto Terrazas': 85,
+  
+  // Zona Oeste
+  'Santiago de Cuba > Oeste > Abel Santamaría': 70,
+  'Santiago de Cuba > Oeste > 30 de Noviembre': 80,
+  'Santiago de Cuba > Oeste > Reparto Versalles': 90,
+  'Santiago de Cuba > Oeste > Micro 4': 85,
+  
+  // Zona Sur
+  'Santiago de Cuba > Sur > Santa Bárbara': 75,
+  'Santiago de Cuba > Sur > Reparto Sánchez Hechavarría': 85,
+  'Santiago de Cuba > Sur > Micro 1': 70,
+  'Santiago de Cuba > Sur > Reparto Portuondo': 80,
+  
+  // Zonas Periféricas (más alejadas)
+  'Santiago de Cuba > Periferia > El Caney': 100,
+  'Santiago de Cuba > Periferia > San Juan': 120,
+  'Santiago de Cuba > Periferia > Siboney': 150,
+  'Santiago de Cuba > Periferia > La Maya': 200,
+  'Santiago de Cuba > Periferia > El Cobre': 180,
+  'Santiago de Cuba > Periferia > Palma Soriano': 250,
 };
 
 export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: CheckoutModalProps) {
@@ -86,6 +127,7 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
   }>({});
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
   const [userCoordinates, setUserCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [showSantiagoZones, setShowSantiagoZones] = useState(false);
 
   // Get delivery zones from embedded configuration
   const embeddedZonesMap = EMBEDDED_DELIVERY_ZONES.reduce((acc, zone) => {
@@ -94,11 +136,22 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
   }, {} as { [key: string]: number });
   
   // Combine embedded zones with base zones
-  const allZones = { 
+  let allZones = { 
     ...BASE_DELIVERY_ZONES, 
     ...embeddedZonesMap,
     'Entrega en Local > TV a la Carta > Local TV a la Carta': 0
   };
+  
+  // Si se selecciona "Entrega a Domicilio", mostrar las zonas de Santiago
+  if (showSantiagoZones) {
+    allZones = {
+      'Por favor seleccionar su Barrio/Zona': 0,
+      'Volver a opciones principales': 0,
+      ...SANTIAGO_DELIVERY_ZONES,
+      'Entrega en Local > TV a la Carta > Local TV a la Carta': 0
+    };
+  }
+  
   const deliveryCost = allZones[deliveryZone as keyof typeof allZones] || 0;
   const finalTotal = total + deliveryCost;
   const isLocalPickup = deliveryZone === 'Entrega en Local > TV a la Carta > Local TV a la Carta';
@@ -110,6 +163,19 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                      customerInfo.phone.trim() !== '' && 
                      customerInfo.address.trim() !== '' &&
                      deliveryZone !== 'Por favor seleccionar su Barrio/Zona';
+
+  // Manejar cambio de zona de entrega
+  const handleDeliveryZoneChange = (value: string) => {
+    if (value === 'Entrega a Domicilio') {
+      setShowSantiagoZones(true);
+      setDeliveryZone('Por favor seleccionar su Barrio/Zona');
+    } else if (value === 'Volver a opciones principales') {
+      setShowSantiagoZones(false);
+      setDeliveryZone('Por favor seleccionar su Barrio/Zona');
+    } else {
+      setDeliveryZone(value);
+    }
+  };
 
   // Función para obtener coordenadas de una dirección
   const getCoordinatesFromAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
@@ -524,7 +590,7 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                     </label>
                     <select
                       value={deliveryZone}
-                      onChange={(e) => setDeliveryZone(e.target.value)}
+                      onChange={(e) => handleDeliveryZoneChange(e.target.value)}
                       required
                       className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all bg-white ${
                         deliveryZone === 'Por favor seleccionar su Barrio/Zona'
@@ -536,7 +602,15 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                         <option key={zone} value={zone}>
                           {zone === 'Por favor seleccionar su Barrio/Zona' 
                             ? zone 
-                            : `${zone.split(' > ')[2] || zone} ${cost > 0 ? `- $${cost.toLocaleString()} CUP` : ''}`
+                            : zone === 'Entrega a Domicilio'
+                              ? '🚚 Entrega a Domicilio (Ver zonas disponibles)'
+                              : zone === 'Volver a opciones principales'
+                                ? '← Volver a opciones principales'
+                                : zone.includes('Local TV a la Carta')
+                                  ? '🏪 Entrega en Local - GRATIS'
+                                  : zone.includes('Santiago de Cuba')
+                                    ? `${zone.split(' > ')[2]} (${zone.split(' > ')[1]}) - $${cost.toLocaleString()} CUP`
+                                    : `${zone.split(' > ')[2] || zone} ${cost > 0 ? `- $${cost.toLocaleString()} CUP` : ''}`
                           }
                         </option>
                       ))}
@@ -550,6 +624,21 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                             Por favor seleccione su zona de entrega para continuar
                           </span>
                         </div>
+                      </div>
+                    )}
+                    
+                    {showSantiagoZones && deliveryZone === 'Por favor seleccionar su Barrio/Zona' && (
+                      <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center mb-2">
+                          <span className="text-blue-600 mr-2">🚚</span>
+                          <span className="text-sm font-medium text-blue-700">
+                            Zonas de Entrega a Domicilio en Santiago de Cuba
+                          </span>
+                        </div>
+                        <p className="text-xs text-blue-600 ml-6">
+                          Seleccione su zona específica para ver el costo de entrega. 
+                          Los precios varían según la distancia desde nuestro local.
+                        </p>
                       </div>
                     )}
                     
@@ -571,7 +660,10 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                           </div>
                         </div>
                         <div className="text-xs text-green-600 ml-11">
-                          ✅ Zona: {deliveryZone.split(' > ')[2] || deliveryZone}
+                          ✅ Zona: {deliveryZone.includes('Santiago de Cuba') 
+                            ? `${deliveryZone.split(' > ')[2]} (${deliveryZone.split(' > ')[1]})` 
+                            : deliveryZone.split(' > ')[2] || deliveryZone
+                          }
                         </div>
                       </div>
                     )}
