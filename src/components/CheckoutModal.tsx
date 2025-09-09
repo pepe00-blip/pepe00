@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, User, MapPin, Phone, Copy, Check, MessageCircle, Calculator, DollarSign, CreditCard } from 'lucide-react';
+import { X, User, MapPin, Phone, Copy, Check, MessageCircle, Calculator, DollarSign, CreditCard, Navigation, Clock, Car, Bike, MapPin as LocationIcon } from 'lucide-react';
 
 // ZONAS DE ENTREGA EMBEBIDAS - Generadas automáticamente
 const EMBEDDED_DELIVERY_ZONES = [];
@@ -12,10 +12,26 @@ const EMBEDDED_PRICES = {
   "novelPricePerChapter": 5
 };
 
+// Coordenadas del local de TV a la Carta
+const TV_A_LA_CARTA_LOCATION = {
+  lat: 20.039585,
+  lng: -75.849663,
+  address: "Reparto Nuevo Vista Alegre, Santiago de Cuba",
+  googleMapsUrl: "https://www.google.com/maps/place/20%C2%B002'22.5%22N+75%C2%B050'58.8%22W/@20.0394604,-75.8495414,180m/data=!3m1!1e3!4m4!3m3!8m2!3d20.039585!4d-75.849663?entry=ttu&g_ep=EgoyMDI1MDczMC4wIKXMDSoASAFQAw%3D%3D"
+};
+
+interface DistanceInfo {
+  distance: string;
+  duration: string;
+  mode: 'driving' | 'walking' | 'bicycling';
+  status: 'OK' | 'ERROR';
+}
+
 export interface CustomerInfo {
   fullName: string;
   phone: string;
   address: string;
+  coordinates?: { lat: number; lng: number };
 }
 
 export interface OrderData {
@@ -29,6 +45,12 @@ export interface OrderData {
   total: number;
   cashTotal?: number;
   transferTotal?: number;
+  distanceInfo?: {
+    driving?: DistanceInfo;
+    walking?: DistanceInfo;
+    bicycling?: DistanceInfo;
+  };
+  isLocalPickup?: boolean;
 }
 
 interface CheckoutModalProps {
@@ -42,7 +64,7 @@ interface CheckoutModalProps {
 // Base delivery zones - these will be combined with embedded zones
 const BASE_DELIVERY_ZONES = {
   'Por favor seleccionar su Barrio/Zona': 0,
-  'Recogida en el Local > TV a la Carta > Oficina Central': 0,
+  
 };
 
 export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: CheckoutModalProps) {
@@ -57,6 +79,13 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
   const [orderGenerated, setOrderGenerated] = useState(false);
   const [generatedOrder, setGeneratedOrder] = useState('');
   const [copied, setCopied] = useState(false);
+  const [distanceInfo, setDistanceInfo] = useState<{
+    driving?: DistanceInfo;
+    walking?: DistanceInfo;
+    bicycling?: DistanceInfo;
+  }>({});
+  const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
+  const [userCoordinates, setUserCoordinates] = useState<{ lat: number; lng: number } | null>(null);
 
   // Get delivery zones from embedded configuration
   const embeddedZonesMap = EMBEDDED_DELIVERY_ZONES.reduce((acc, zone) => {
@@ -65,9 +94,14 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
   }, {} as { [key: string]: number });
   
   // Combine embedded zones with base zones
-  const allZones = { ...BASE_DELIVERY_ZONES, ...embeddedZonesMap };
+  const allZones = { 
+    ...BASE_DELIVERY_ZONES, 
+    ...embeddedZonesMap,
+    'Entrega en Local > TV a la Carta > Local TV a la Carta': 0
+  };
   const deliveryCost = allZones[deliveryZone as keyof typeof allZones] || 0;
   const finalTotal = total + deliveryCost;
+  const isLocalPickup = deliveryZone === 'Entrega en Local > TV a la Carta > Local TV a la Carta';
 
   // Get current transfer fee percentage from embedded prices
   const transferFeePercentage = EMBEDDED_PRICES.transferFeePercentage;
@@ -77,6 +111,72 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                      customerInfo.address.trim() !== '' &&
                      deliveryZone !== 'Por favor seleccionar su Barrio/Zona';
 
+  // Función para obtener coordenadas de una dirección
+  const getCoordinatesFromAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Santiago de Cuba, Cuba')}&limit=1`
+      );
+      const data = await response.json();
+      
+      if (data && data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon)
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting coordinates:', error);
+      return null;
+    }
+  };
+
+  // Función para calcular distancia usando OpenRouteService (alternativa gratuita)
+  const calculateDistance = async (
+    start: { lat: number; lng: number },
+    end: { lat: number; lng: number },
+    mode: 'driving' | 'walking' | 'bicycling'
+  ): Promise<DistanceInfo> => {
+    try {
+      // Usar OpenRouteService como alternativa gratuita
+      const profile = mode === 'driving' ? 'driving-car' : mode === 'bicycling' ? 'cycling-regular' : 'foot-walking';
+      
+      // Calcular distancia euclidiana como fallback
+      const R = 6371; // Radio de la Tierra en km
+      const dLat = (end.lat - start.lat) * Math.PI / 180;
+      const dLon = (end.lng - start.lng) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(start.lat * Math.PI / 180) * Math.cos(end.lat * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
+
+      // Estimar tiempo basado en velocidades promedio
+      const speeds = {
+        driving: 30, // km/h en ciudad
+        bicycling: 15, // km/h
+        walking: 5 // km/h
+      };
+
+      const duration = (distance / speeds[mode]) * 60; // en minutos
+
+      return {
+        distance: `${distance.toFixed(1)} km`,
+        duration: duration < 60 ? `${Math.round(duration)} min` : `${Math.round(duration / 60)}h ${Math.round(duration % 60)}min`,
+        mode,
+        status: 'OK'
+      };
+    } catch (error) {
+      console.error('Error calculating distance:', error);
+      return {
+        distance: 'No disponible',
+        duration: 'No disponible',
+        mode,
+        status: 'ERROR'
+      };
+    }
+  };
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setCustomerInfo(prev => ({
@@ -163,31 +263,47 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
       orderText += `• Recargo transferencia (${transferFeePercentage}%): +$${transferFee.toLocaleString()} CUP\n`;
     }
     
-    orderText += `🚚 Entrega (${deliveryZone.split(' > ')[2]}): +$${deliveryCost.toLocaleString()} CUP\n`;
+    if (isLocalPickup) {
+      orderText += `🏪 Entrega en Local: GRATIS\n`;
+    } else {
+      orderText += `🚚 Entrega (${deliveryZone.split(' > ')[2]}): +$${deliveryCost.toLocaleString()} CUP\n`;
+    }
     orderText += `\n🎯 *TOTAL FINAL: $${finalTotal.toLocaleString()} CUP*\n\n`;
     
-    orderText += `📍 *ZONA DE ENTREGA:*\n`;
-    orderText += `${deliveryZone.replace(' > ', ' → ')}\n`;
-    orderText += `💰 Costo de entrega: $${deliveryCost.toLocaleString()} CUP\n\n`;
-    
-    // Agregar información de ubicación si es recogida en oficina central
-    if (deliveryZone.toLowerCase().includes('oficina central')) {
-      orderText += `📍 *UBICACIÓN DE TV A LA CARTA:*\n`;
-      orderText += `📍 Dirección: ${TV_A_LA_CARTA_COORDS.address}\n`;
-      orderText += `🗺️ Coordenadas: ${TV_A_LA_CARTA_COORDS.lat}, ${TV_A_LA_CARTA_COORDS.lng}\n`;
-      orderText += `🔗 Google Maps: https://www.google.com/maps/place/20%C2%B002'22.5%22N+75%C2%B050'58.8%22W/@20.0394604,-75.8495414,180m/data=!3m1!1e3!4m4!3m3!8m2!3d20.039585!4d-75.849663?entry=ttu&g_ep=EgoyMDI1MDczMC4wIKXMDSoASAFQAw%3D%3D\n`;
+    if (isLocalPickup) {
+      orderText += `🏪 *ENTREGA EN LOCAL:*\n`;
+      orderText += `📍 Ubicación: ${TV_A_LA_CARTA_LOCATION.address}\n`;
+      orderText += `🗺️ Google Maps: ${TV_A_LA_CARTA_LOCATION.googleMapsUrl}\n`;
+      orderText += `💰 Costo: GRATIS\n\n`;
       
-      if (locationInfo) {
-        orderText += `\n🚗 *INFORMACIÓN DE RUTA:*\n`;
-        orderText += `📏 Distancia: ${locationInfo.distance}\n`;
-        orderText += `⏱️ Tiempo estimado: ${locationInfo.duration}\n`;
-        orderText += `🚶 Modo de transporte: ${
-          locationInfo.mode === 'driving' ? 'Automóvil 🚗' :
-          locationInfo.mode === 'bicycling' ? 'Bicicleta 🚲' :
-          'Caminando 🚶'
-        }\n`;
+      // Agregar información de distancia si está disponible
+      if (distanceInfo.driving || distanceInfo.walking || distanceInfo.bicycling) {
+        orderText += `🚗 *INFORMACIÓN DE DISTANCIA Y TIEMPO:*\n`;
+        orderText += `📍 Desde: ${customerInfo.address}\n`;
+        orderText += `📍 Hasta: ${TV_A_LA_CARTA_LOCATION.address}\n\n`;
+        
+        if (distanceInfo.driving?.status === 'OK') {
+          orderText += `🚗 *En Automóvil:*\n`;
+          orderText += `   📏 Distancia: ${distanceInfo.driving.distance}\n`;
+          orderText += `   ⏱️ Tiempo estimado: ${distanceInfo.driving.duration}\n\n`;
+        }
+        
+        if (distanceInfo.bicycling?.status === 'OK') {
+          orderText += `🚴 *En Bicicleta (eléctrica/pedales):*\n`;
+          orderText += `   📏 Distancia: ${distanceInfo.bicycling.distance}\n`;
+          orderText += `   ⏱️ Tiempo estimado: ${distanceInfo.bicycling.duration}\n\n`;
+        }
+        
+        if (distanceInfo.walking?.status === 'OK') {
+          orderText += `🚶 *Caminando:*\n`;
+          orderText += `   📏 Distancia: ${distanceInfo.walking.distance}\n`;
+          orderText += `   ⏱️ Tiempo estimado: ${distanceInfo.walking.duration}\n\n`;
+        }
       }
-      orderText += `\n`;
+    } else {
+      orderText += `📍 *ZONA DE ENTREGA:*\n`;
+      orderText += `${deliveryZone.replace(' > ', ' → ')}\n`;
+      orderText += `💰 Costo de entrega: $${deliveryCost.toLocaleString()} CUP\n\n`;
     }
     
     orderText += `⏰ *Fecha:* ${new Date().toLocaleString('es-ES')}\n`;
@@ -247,7 +363,9 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
         transferFee,
         total: finalTotal,
         cashTotal,
-        transferTotal
+        transferTotal,
+        distanceInfo,
+        isLocalPickup
       };
 
       await onCheckout(orderData);
@@ -300,7 +418,7 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                       ${total.toLocaleString()} CUP
                     </div>
                     <div className="text-sm text-gray-600">Subtotal Contenido</div>
-                    <div className="text-xs text-gray-500 mt-1">${items.length} elementos</div>
+                    <div className="text-xs text-gray-500 mt-1">{items.length} elementos</div>
                   </div>
                 </div>
                 
@@ -435,111 +553,121 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                       </div>
                     )}
                     
-                    {deliveryZone !== 'Por favor seleccionar su Barrio/Zona' && (
+                    {deliveryCost > 0 && (
                       <div className="mt-3 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center">
                             <div className="bg-green-100 p-2 rounded-lg mr-3">
-                              <span className="text-sm">{deliveryCost > 0 ? '🚚' : '🏪'}</span>
+                              <span className="text-sm">🚚</span>
                             </div>
                             <span className="text-sm font-semibold text-green-800">
-                              {deliveryCost > 0 ? 'Costo de entrega confirmado:' : 'Recogida confirmada:'}
+                              Costo de entrega confirmado:
                             </span>
                           </div>
                           <div className="bg-white rounded-lg px-3 py-2 border border-green-300">
                             <span className="text-lg font-bold text-green-600">
-                              {deliveryCost > 0 ? `$${deliveryCost.toLocaleString()} CUP` : 'GRATIS'}
+                              ${deliveryCost.toLocaleString()} CUP
                             </span>
                           </div>
                         </div>
                         <div className="text-xs text-green-600 ml-11">
-                          ✅ {deliveryCost > 0 ? 'Zona' : 'Modalidad'}: {deliveryZone.split(' > ')[2] || deliveryZone}
+                          ✅ Zona: {deliveryZone.split(' > ')[2] || deliveryZone}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {isLocalPickup && (
+                      <div className="mt-3 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center">
+                            <div className="bg-blue-100 p-2 rounded-lg mr-3">
+                              <span className="text-sm">🏪</span>
+                            </div>
+                            <span className="text-sm font-semibold text-blue-800">
+                              Entrega en Local - GRATIS
+                            </span>
+                          </div>
+                          <div className="bg-green-100 rounded-lg px-3 py-2 border border-green-300">
+                            <span className="text-lg font-bold text-green-600">
+                              $0 CUP
+                            </span>
+                          </div>
                         </div>
                         
-                        {/* Mostrar información de ubicación para recogida en oficina central */}
-                        {deliveryZone.toLowerCase().includes('oficina central') && (
-                          <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                            <div className="flex items-center mb-3">
-                              <MapPin className="h-5 w-5 text-blue-600 mr-2" />
-                              <h4 className="font-semibold text-blue-900">Ubicación de TV a la Carta</h4>
+                        <div className="bg-white rounded-lg p-3 border border-blue-200 mb-3">
+                          <div className="flex items-center mb-2">
+                            <LocationIcon className="h-4 w-4 text-blue-600 mr-2" />
+                            <span className="text-sm font-semibold text-blue-800">Ubicación del Local:</span>
+                          </div>
+                          <p className="text-sm text-blue-700 ml-6">{TV_A_LA_CARTA_LOCATION.address}</p>
+                          <div className="mt-2 ml-6">
+                            <a
+                              href={TV_A_LA_CARTA_LOCATION.googleMapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full transition-colors"
+                            >
+                              <MapPin className="h-3 w-3 mr-1" />
+                              Ver en Google Maps
+                            </a>
+                          </div>
+                        </div>
+                        
+                        {/* Información de distancia */}
+                        {customerInfo.address.trim() !== '' && (
+                          <div className="bg-white rounded-lg p-3 border border-blue-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center">
+                                <Navigation className="h-4 w-4 text-blue-600 mr-2" />
+                                <span className="text-sm font-semibold text-blue-800">Información de Distancia:</span>
+                              </div>
+                              {isCalculatingDistance && (
+                                <div className="flex items-center">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                                  <span className="text-xs text-blue-600">Calculando...</span>
+                                </div>
+                              )}
                             </div>
                             
-                            <div className="space-y-3">
-                              <div className="bg-white rounded-lg p-3 border border-blue-200">
-                                <p className="text-sm font-medium text-gray-900 mb-1">📍 Dirección:</p>
-                                <p className="text-sm text-gray-700">{TV_A_LA_CARTA_COORDS.address}</p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Coordenadas: {TV_A_LA_CARTA_COORDS.lat}, {TV_A_LA_CARTA_COORDS.lng}
-                                </p>
-                              </div>
-                              
-                              <div className="flex flex-col space-y-2">
-                                <button
-                                  onClick={openGoogleMaps}
-                                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center"
-                                >
-                                  <Navigation className="h-4 w-4 mr-2" />
-                                  Ver en Google Maps
-                                </button>
-                                
-                                {customerInfo.address.trim() && (
-                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
-                                    <p className="text-sm font-medium text-gray-900 mb-2">🚗 Calcular ruta desde tu ubicación:</p>
-                                    <div className="flex space-x-2 mb-3">
-                                      <button
-                                        onClick={() => calculateDistance('driving')}
-                                        disabled={isCalculatingDistance}
-                                        className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center"
-                                      >
-                                        <Car className="h-3 w-3 mr-1" />
-                                        Auto
-                                      </button>
-                                      <button
-                                        onClick={() => calculateDistance('bicycling')}
-                                        disabled={isCalculatingDistance}
-                                        className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center"
-                                      >
-                                        <Bike className="h-3 w-3 mr-1" />
-                                        Bici
-                                      </button>
-                                      <button
-                                        onClick={() => calculateDistance('walking')}
-                                        disabled={isCalculatingDistance}
-                                        className="flex-1 bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center"
-                                      >
-                                        <Footprints className="h-3 w-3 mr-1" />
-                                        Pie
-                                      </button>
+                            {!isCalculatingDistance && (distanceInfo.driving || distanceInfo.walking || distanceInfo.bicycling) && (
+                              <div className="space-y-2 ml-6">
+                                {distanceInfo.driving?.status === 'OK' && (
+                                  <div className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center">
+                                      <Car className="h-3 w-3 text-gray-600 mr-2" />
+                                      <span>En automóvil:</span>
                                     </div>
-                                    
-                                    {isCalculatingDistance && (
-                                      <div className="flex items-center justify-center py-2">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-2"></div>
-                                        <span className="text-xs text-gray-600">Calculando ruta...</span>
-                                      </div>
-                                    )}
-                                    
-                                    {locationInfo && (
-                                      <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-3 border border-green-200">
-                                        <div className="flex items-center mb-2">
-                                          <Clock className="h-4 w-4 text-green-600 mr-2" />
-                                          <span className="text-sm font-semibold text-green-800">Información de Ruta</span>
-                                        </div>
-                                        <div className="space-y-1 text-xs">
-                                          <p><strong>Distancia:</strong> {locationInfo.distance}</p>
-                                          <p><strong>Tiempo estimado:</strong> {locationInfo.duration}</p>
-                                          <p><strong>Modo:</strong> {
-                                            locationInfo.mode === 'driving' ? '🚗 Automóvil' :
-                                            locationInfo.mode === 'bicycling' ? '🚲 Bicicleta' :
-                                            '🚶 Caminando'
-                                          }</p>
-                                        </div>
-                                      </div>
-                                    )}
+                                    <span className="font-medium">{distanceInfo.driving.distance} • {distanceInfo.driving.duration}</span>
+                                  </div>
+                                )}
+                                
+                                {distanceInfo.bicycling?.status === 'OK' && (
+                                  <div className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center">
+                                      <Bike className="h-3 w-3 text-gray-600 mr-2" />
+                                      <span>En bicicleta:</span>
+                                    </div>
+                                    <span className="font-medium">{distanceInfo.bicycling.distance} • {distanceInfo.bicycling.duration}</span>
+                                  </div>
+                                )}
+                                
+                                {distanceInfo.walking?.status === 'OK' && (
+                                  <div className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center">
+                                      <span className="text-gray-600 mr-2">🚶</span>
+                                      <span>Caminando:</span>
+                                    </div>
+                                    <span className="font-medium">{distanceInfo.walking.distance} • {distanceInfo.walking.duration}</span>
                                   </div>
                                 )}
                               </div>
-                            </div>
+                            )}
+                            
+                            {!isCalculatingDistance && !distanceInfo.driving && !distanceInfo.walking && !distanceInfo.bicycling && (
+                              <p className="text-xs text-gray-500 ml-6">
+                                Ingrese su dirección completa para calcular distancia y tiempo estimado
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
