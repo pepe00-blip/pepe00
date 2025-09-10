@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, User, MapPin, Phone, Copy, Check, MessageCircle, Calculator, DollarSign, CreditCard, Navigation, Clock, Car, Bike, MapPin as LocationIcon } from 'lucide-react';
+import { X, User, MapPin, Phone, Copy, Check, MessageCircle, Calculator, DollarSign, CreditCard, Navigation, Clock, Car, Bike, MapPin as LocationIcon, ChevronDown, Search, Filter, Grid, List } from 'lucide-react';
 
 // ZONAS DE ENTREGA EMBEBIDAS - Generadas automáticamente
 const EMBEDDED_DELIVERY_ZONES = [];
@@ -61,51 +61,93 @@ interface CheckoutModalProps {
   total: number;
 }
 
-// Base delivery zones - these will be combined with embedded zones
-const BASE_DELIVERY_ZONES = {
-  'Por favor seleccionar su Barrio/Zona': 0,
-  'Entrega a Domicilio': 0,
-};
-
-// Zonas específicas de Santiago de Cuba con costos
+// Zonas específicas de Santiago de Cuba organizadas por sectores
 const SANTIAGO_DELIVERY_ZONES = {
-  // Centro de Santiago
-  'Santiago de Cuba > Centro > Parque Céspedes': 50,
-  'Santiago de Cuba > Centro > Plaza de Marte': 50,
-  'Santiago de Cuba > Centro > Calle Enramadas': 50,
-  'Santiago de Cuba > Centro > Plaza de Dolores': 50,
+  // Centro Histórico y Comercial
+  'Centro Histórico': {
+    icon: '🏛️',
+    color: 'from-amber-500 to-orange-500',
+    zones: {
+      'Santiago de Cuba > Centro > Parque Céspedes': 50,
+      'Santiago de Cuba > Centro > Plaza de Marte': 50,
+      'Santiago de Cuba > Centro > Calle Enramadas': 50,
+      'Santiago de Cuba > Centro > Plaza de Dolores': 50,
+      'Santiago de Cuba > Centro > Catedral': 45,
+      'Santiago de Cuba > Centro > Museo del Carnaval': 45,
+    }
+  },
   
-  // Zona Norte
-  'Santiago de Cuba > Norte > Vista Alegre': 60,
-  'Santiago de Cuba > Norte > Sueño': 70,
-  'Santiago de Cuba > Norte > Los Olmos': 80,
-  'Santiago de Cuba > Norte > Altamira': 90,
+  // Zona Norte (Residencial)
+  'Zona Norte': {
+    icon: '🏘️',
+    color: 'from-blue-500 to-cyan-500',
+    zones: {
+      'Santiago de Cuba > Norte > Vista Alegre': 60,
+      'Santiago de Cuba > Norte > Sueño': 70,
+      'Santiago de Cuba > Norte > Los Olmos': 80,
+      'Santiago de Cuba > Norte > Altamira': 90,
+      'Santiago de Cuba > Norte > Reparto Flores': 65,
+      'Santiago de Cuba > Norte > Micro 9': 75,
+    }
+  },
   
   // Zona Este
-  'Santiago de Cuba > Este > Reparto Flores': 65,
-  'Santiago de Cuba > Este > Micro 9': 75,
-  'Santiago de Cuba > Este > Micro 10': 75,
-  'Santiago de Cuba > Este > Reparto Terrazas': 85,
+  'Zona Este': {
+    icon: '🌅',
+    color: 'from-green-500 to-emerald-500',
+    zones: {
+      'Santiago de Cuba > Este > Reparto Flores': 65,
+      'Santiago de Cuba > Este > Micro 9': 75,
+      'Santiago de Cuba > Este > Micro 10': 75,
+      'Santiago de Cuba > Este > Reparto Terrazas': 85,
+      'Santiago de Cuba > Este > Distrito José Martí': 70,
+      'Santiago de Cuba > Este > Reparto Sánchez Hechavarría': 80,
+    }
+  },
   
   // Zona Oeste
-  'Santiago de Cuba > Oeste > Abel Santamaría': 70,
-  'Santiago de Cuba > Oeste > 30 de Noviembre': 80,
-  'Santiago de Cuba > Oeste > Reparto Versalles': 90,
-  'Santiago de Cuba > Oeste > Micro 4': 85,
+  'Zona Oeste': {
+    icon: '🌇',
+    color: 'from-purple-500 to-pink-500',
+    zones: {
+      'Santiago de Cuba > Oeste > Abel Santamaría': 70,
+      'Santiago de Cuba > Oeste > 30 de Noviembre': 80,
+      'Santiago de Cuba > Oeste > Reparto Versalles': 90,
+      'Santiago de Cuba > Oeste > Micro 4': 85,
+      'Santiago de Cuba > Oeste > Reparto Portuondo': 80,
+      'Santiago de Cuba > Oeste > Santa Bárbara': 75,
+    }
+  },
   
   // Zona Sur
-  'Santiago de Cuba > Sur > Santa Bárbara': 75,
-  'Santiago de Cuba > Sur > Reparto Sánchez Hechavarría': 85,
-  'Santiago de Cuba > Sur > Micro 1': 70,
-  'Santiago de Cuba > Sur > Reparto Portuondo': 80,
+  'Zona Sur': {
+    icon: '🏔️',
+    color: 'from-red-500 to-rose-500',
+    zones: {
+      'Santiago de Cuba > Sur > Santa Bárbara': 75,
+      'Santiago de Cuba > Sur > Reparto Sánchez Hechavarría': 85,
+      'Santiago de Cuba > Sur > Micro 1': 70,
+      'Santiago de Cuba > Sur > Reparto Portuondo': 80,
+      'Santiago de Cuba > Sur > Distrito Frank País': 85,
+      'Santiago de Cuba > Sur > Reparto Chicharrones': 90,
+    }
+  },
   
-  // Zonas Periféricas (más alejadas)
-  'Santiago de Cuba > Periferia > El Caney': 100,
-  'Santiago de Cuba > Periferia > San Juan': 120,
-  'Santiago de Cuba > Periferia > Siboney': 150,
-  'Santiago de Cuba > Periferia > La Maya': 200,
-  'Santiago de Cuba > Periferia > El Cobre': 180,
-  'Santiago de Cuba > Periferia > Palma Soriano': 250,
+  // Zonas Periféricas
+  'Zonas Periféricas': {
+    icon: '🏞️',
+    color: 'from-indigo-500 to-purple-500',
+    zones: {
+      'Santiago de Cuba > Periferia > El Caney': 100,
+      'Santiago de Cuba > Periferia > San Juan': 120,
+      'Santiago de Cuba > Periferia > Siboney': 150,
+      'Santiago de Cuba > Periferia > La Maya': 200,
+      'Santiago de Cuba > Periferia > El Cobre': 180,
+      'Santiago de Cuba > Periferia > Palma Soriano': 250,
+      'Santiago de Cuba > Periferia > Contramaestre': 300,
+      'Santiago de Cuba > Periferia > Songo La Maya': 280,
+    }
+  }
 };
 
 export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: CheckoutModalProps) {
@@ -127,7 +169,10 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
   }>({});
   const [isCalculatingDistance, setIsCalculatingDistance] = useState(false);
   const [userCoordinates, setUserCoordinates] = useState<{ lat: number; lng: number } | null>(null);
-  const [showSantiagoZones, setShowSantiagoZones] = useState(false);
+  const [showDeliverySelector, setShowDeliverySelector] = useState(false);
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Get delivery zones from embedded configuration
   const embeddedZonesMap = EMBEDDED_DELIVERY_ZONES.reduce((acc, zone) => {
@@ -135,24 +180,11 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
     return acc;
   }, {} as { [key: string]: number });
   
-  // Combine embedded zones with base zones
-  let allZones = { 
-    ...BASE_DELIVERY_ZONES, 
-    ...embeddedZonesMap,
-    'Entrega en Local > TV a la Carta > Local TV a la Carta': 0
-  };
+  const deliveryCost = deliveryZone === 'Por favor seleccionar su Barrio/Zona' ? 0 :
+                      deliveryZone === 'Entrega en Local > TV a la Carta > Local TV a la Carta' ? 0 :
+                      embeddedZonesMap[deliveryZone] || 
+                      Object.values(SANTIAGO_DELIVERY_ZONES).flatMap(sector => Object.entries(sector.zones)).find(([zone]) => zone === deliveryZone)?.[1] || 0;
   
-  // Si se selecciona "Entrega a Domicilio", mostrar las zonas de Santiago
-  if (showSantiagoZones) {
-    allZones = {
-      'Por favor seleccionar su Barrio/Zona': 0,
-      'Volver a opciones principales': 0,
-      ...SANTIAGO_DELIVERY_ZONES,
-      'Entrega en Local > TV a la Carta > Local TV a la Carta': 0
-    };
-  }
-  
-  const deliveryCost = allZones[deliveryZone as keyof typeof allZones] || 0;
   const finalTotal = total + deliveryCost;
   const isLocalPickup = deliveryZone === 'Entrega en Local > TV a la Carta > Local TV a la Carta';
 
@@ -164,18 +196,34 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                      customerInfo.address.trim() !== '' &&
                      deliveryZone !== 'Por favor seleccionar su Barrio/Zona';
 
-  // Manejar cambio de zona de entrega
-  const handleDeliveryZoneChange = (value: string) => {
-    if (value === 'Entrega a Domicilio') {
-      setShowSantiagoZones(true);
-      setDeliveryZone('Por favor seleccionar su Barrio/Zona');
-    } else if (value === 'Volver a opciones principales') {
-      setShowSantiagoZones(false);
-      setDeliveryZone('Por favor seleccionar su Barrio/Zona');
-    } else {
-      setDeliveryZone(value);
-    }
+  // Filtrar zonas por búsqueda
+  const getFilteredZones = () => {
+    if (!searchTerm) return SANTIAGO_DELIVERY_ZONES;
+    
+    const filtered: typeof SANTIAGO_DELIVERY_ZONES = {};
+    
+    Object.entries(SANTIAGO_DELIVERY_ZONES).forEach(([sectorName, sectorData]) => {
+      const matchingZones: { [key: string]: number } = {};
+      
+      Object.entries(sectorData.zones).forEach(([zoneName, cost]) => {
+        const zoneDisplayName = zoneName.split(' > ')[2] || zoneName;
+        if (zoneDisplayName.toLowerCase().includes(searchTerm.toLowerCase())) {
+          matchingZones[zoneName] = cost;
+        }
+      });
+      
+      if (Object.keys(matchingZones).length > 0) {
+        filtered[sectorName] = {
+          ...sectorData,
+          zones: matchingZones
+        };
+      }
+    });
+    
+    return filtered;
   };
+
+  const filteredZones = getFilteredZones();
 
   // Función para obtener coordenadas de una dirección
   const getCoordinatesFromAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
@@ -205,9 +253,6 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
     mode: 'driving' | 'walking' | 'bicycling'
   ): Promise<DistanceInfo> => {
     try {
-      // Usar OpenRouteService como alternativa gratuita
-      const profile = mode === 'driving' ? 'driving-car' : mode === 'bicycling' ? 'cycling-regular' : 'foot-walking';
-      
       // Calcular distancia euclidiana como fallback
       const R = 6371; // Radio de la Tierra en km
       const dLat = (end.lat - start.lat) * Math.PI / 180;
@@ -243,6 +288,7 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
       };
     }
   };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setCustomerInfo(prev => ({
@@ -442,6 +488,13 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
     }
   };
 
+  const handleZoneSelect = (zoneName: string) => {
+    setDeliveryZone(zoneName);
+    setShowDeliverySelector(false);
+    setSelectedSector(null);
+    setSearchTerm('');
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -565,7 +618,7 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                   </div>
                 </div>
 
-                {/* Delivery Zone */}
+                {/* Modern Delivery Zone Selector */}
                 <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-sm">
                   <h3 className="text-lg sm:text-xl font-bold mb-4 flex items-center text-gray-900">
                     <MapPin className="h-5 w-5 mr-3 text-green-600" />
@@ -583,183 +636,332 @@ export function CheckoutModal({ isOpen, onClose, onCheckout, items, total }: Che
                       Seleccione su zona para calcular el costo de entrega. Los precios pueden variar según la distancia.
                     </p>
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Seleccionar Barrio/Zona *
-                    </label>
-                    <select
-                      value={deliveryZone}
-                      onChange={(e) => handleDeliveryZoneChange(e.target.value)}
-                      required
-                      className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:border-transparent transition-all bg-white ${
-                        deliveryZone === 'Por favor seleccionar su Barrio/Zona'
-                          ? 'border-orange-300 focus:ring-orange-500 bg-orange-50'
-                          : 'border-gray-300 focus:ring-green-500'
+
+                  {/* Delivery Options */}
+                  <div className="space-y-4">
+                    {/* Local Pickup Option */}
+                    <div 
+                      onClick={() => handleZoneSelect('Entrega en Local > TV a la Carta > Local TV a la Carta')}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 transform hover:scale-[1.02] ${
+                        isLocalPickup
+                          ? 'border-green-500 bg-gradient-to-r from-green-50 to-emerald-50 shadow-lg'
+                          : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
                       }`}
                     >
-                      {Object.entries(allZones).map(([zone, cost]) => (
-                        <option key={zone} value={zone}>
-                          {zone === 'Por favor seleccionar su Barrio/Zona' 
-                            ? zone 
-                            : zone === 'Entrega a Domicilio'
-                              ? '🚚 Entrega a Domicilio (Ver zonas disponibles)'
-                              : zone === 'Volver a opciones principales'
-                                ? '← Volver a opciones principales'
-                                : zone.includes('Local TV a la Carta')
-                                  ? '🏪 Entrega en Local - GRATIS'
-                                  : zone.includes('Santiago de Cuba')
-                                    ? `${zone.split(' > ')[2]} (${zone.split(' > ')[1]}) - $${cost.toLocaleString()} CUP`
-                                    : `${zone.split(' > ')[2] || zone} ${cost > 0 ? `- $${cost.toLocaleString()} CUP` : ''}`
-                          }
-                        </option>
-                      ))}
-                    </select>
-                    
-                    {deliveryZone === 'Por favor seleccionar su Barrio/Zona' && (
-                      <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                          <span className="text-orange-600 mr-2">⚠️</span>
-                          <span className="text-sm font-medium text-orange-700">
-                            Por favor seleccione su zona de entrega para continuar
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {showSantiagoZones && deliveryZone === 'Por favor seleccionar su Barrio/Zona' && (
-                      <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <div className="flex items-center mb-2">
-                          <span className="text-blue-600 mr-2">🚚</span>
-                          <span className="text-sm font-medium text-blue-700">
-                            Zonas de Entrega a Domicilio en Santiago de Cuba
-                          </span>
-                        </div>
-                        <p className="text-xs text-blue-600 ml-6">
-                          Seleccione su zona específica para ver el costo de entrega. 
-                          Los precios varían según la distancia desde nuestro local.
-                        </p>
-                      </div>
-                    )}
-                    
-                    {deliveryCost > 0 && (
-                      <div className="mt-3 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center">
-                            <div className="bg-green-100 p-2 rounded-lg mr-3">
-                              <span className="text-sm">🚚</span>
-                            </div>
-                            <span className="text-sm font-semibold text-green-800">
-                              Costo de entrega confirmado:
-                            </span>
+                          <div className={`p-3 rounded-xl mr-4 ${
+                            isLocalPickup ? 'bg-green-500' : 'bg-gray-100'
+                          }`}>
+                            <span className="text-2xl">🏪</span>
                           </div>
-                          <div className="bg-white rounded-lg px-3 py-2 border border-green-300">
-                            <span className="text-lg font-bold text-green-600">
+                          <div>
+                            <h4 className={`font-bold text-lg ${
+                              isLocalPickup ? 'text-green-900' : 'text-gray-900'
+                            }`}>
+                              Entrega en Local
+                            </h4>
+                            <p className={`text-sm ${
+                              isLocalPickup ? 'text-green-700' : 'text-gray-600'
+                            }`}>
+                              Recoge tu pedido directamente en nuestro local
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {TV_A_LA_CARTA_LOCATION.address}
+                            </p>
+                          </div>
+                        </div>
+                        <div className={`px-4 py-2 rounded-full font-bold ${
+                          isLocalPickup 
+                            ? 'bg-green-500 text-white' 
+                            : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          GRATIS
+                        </div>
+                      </div>
+                      
+                      {isLocalPickup && (
+                        <div className="mt-4 pt-4 border-t border-green-200">
+                          <a
+                            href={TV_A_LA_CARTA_LOCATION.googleMapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-sm bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors"
+                          >
+                            <MapPin className="h-4 w-4 mr-2" />
+                            Ver Ubicación en Google Maps
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Home Delivery Option */}
+                    <div 
+                      onClick={() => setShowDeliverySelector(!showDeliverySelector)}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 transform hover:scale-[1.02] ${
+                        !isLocalPickup && deliveryZone !== 'Por favor seleccionar su Barrio/Zona'
+                          ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-purple-50 shadow-lg'
+                          : showDeliverySelector
+                            ? 'border-blue-300 bg-blue-50'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className={`p-3 rounded-xl mr-4 ${
+                            !isLocalPickup && deliveryZone !== 'Por favor seleccionar su Barrio/Zona'
+                              ? 'bg-blue-500' 
+                              : 'bg-gray-100'
+                          }`}>
+                            <span className="text-2xl">🚚</span>
+                          </div>
+                          <div>
+                            <h4 className={`font-bold text-lg ${
+                              !isLocalPickup && deliveryZone !== 'Por favor seleccionar su Barrio/Zona'
+                                ? 'text-blue-900' 
+                                : 'text-gray-900'
+                            }`}>
+                              Entrega a Domicilio
+                            </h4>
+                            <p className={`text-sm ${
+                              !isLocalPickup && deliveryZone !== 'Por favor seleccionar su Barrio/Zona'
+                                ? 'text-blue-700' 
+                                : 'text-gray-600'
+                            }`}>
+                              {!isLocalPickup && deliveryZone !== 'Por favor seleccionar su Barrio/Zona'
+                                ? `${deliveryZone.split(' > ')[2]} - $${deliveryCost.toLocaleString()} CUP`
+                                : 'Selecciona tu zona de entrega'
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          {!isLocalPickup && deliveryZone !== 'Por favor seleccionar su Barrio/Zona' && (
+                            <div className="bg-blue-500 text-white px-4 py-2 rounded-full font-bold mr-3">
                               ${deliveryCost.toLocaleString()} CUP
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-xs text-green-600 ml-11">
-                          ✅ Zona: {deliveryZone.includes('Santiago de Cuba') 
-                            ? `${deliveryZone.split(' > ')[2]} (${deliveryZone.split(' > ')[1]})` 
-                            : deliveryZone.split(' > ')[2] || deliveryZone
-                          }
+                            </div>
+                          )}
+                          <ChevronDown className={`h-5 w-5 text-gray-600 transition-transform duration-300 ${
+                            showDeliverySelector ? 'rotate-180' : ''
+                          }`} />
                         </div>
                       </div>
-                    )}
-                    
-                    {isLocalPickup && (
-                      <div className="mt-3 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center">
-                            <div className="bg-blue-100 p-2 rounded-lg mr-3">
-                              <span className="text-sm">🏪</span>
+                    </div>
+
+                    {/* Modern Zone Selector */}
+                    {showDeliverySelector && (
+                      <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl p-6 border-2 border-blue-200 shadow-xl">
+                        <div className="flex items-center justify-between mb-6">
+                          <h4 className="text-xl font-bold text-gray-900 flex items-center">
+                            <MapPin className="h-6 w-6 text-blue-600 mr-3" />
+                            Seleccionar Zona de Entrega
+                          </h4>
+                          
+                          <div className="flex items-center space-x-3">
+                            {/* Search */}
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                              <input
+                                type="text"
+                                placeholder="Buscar zona..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              />
                             </div>
-                            <span className="text-sm font-semibold text-blue-800">
-                              Entrega en Local - GRATIS
-                            </span>
-                          </div>
-                          <div className="bg-green-100 rounded-lg px-3 py-2 border border-green-300">
-                            <span className="text-lg font-bold text-green-600">
-                              $0 CUP
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-white rounded-lg p-3 border border-blue-200 mb-3">
-                          <div className="flex items-center mb-2">
-                            <LocationIcon className="h-4 w-4 text-blue-600 mr-2" />
-                            <span className="text-sm font-semibold text-blue-800">Ubicación del Local:</span>
-                          </div>
-                          <p className="text-sm text-blue-700 ml-6">{TV_A_LA_CARTA_LOCATION.address}</p>
-                          <div className="mt-2 ml-6">
-                            <a
-                              href={TV_A_LA_CARTA_LOCATION.googleMapsUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full transition-colors"
-                            >
-                              <MapPin className="h-3 w-3 mr-1" />
-                              Ver en Google Maps
-                            </a>
+                            
+                            {/* View Mode Toggle */}
+                            <div className="flex bg-white rounded-lg border border-gray-200 p-1">
+                              <button
+                                onClick={() => setViewMode('grid')}
+                                className={`p-2 rounded-md transition-colors ${
+                                  viewMode === 'grid' 
+                                    ? 'bg-blue-500 text-white' 
+                                    : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                <Grid className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => setViewMode('list')}
+                                className={`p-2 rounded-md transition-colors ${
+                                  viewMode === 'list' 
+                                    ? 'bg-blue-500 text-white' 
+                                    : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                <List className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        
-                        {/* Información de distancia */}
-                        {customerInfo.address.trim() !== '' && (
-                          <div className="bg-white rounded-lg p-3 border border-blue-200">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center">
-                                <Navigation className="h-4 w-4 text-blue-600 mr-2" />
-                                <span className="text-sm font-semibold text-blue-800">Información de Distancia:</span>
-                              </div>
-                              {isCalculatingDistance && (
-                                <div className="flex items-center">
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                                  <span className="text-xs text-blue-600">Calculando...</span>
+
+                        {/* Zones Display */}
+                        <div className="max-h-96 overflow-y-auto">
+                          {viewMode === 'grid' ? (
+                            /* Grid View */
+                            <div className="space-y-6">
+                              {Object.entries(filteredZones).map(([sectorName, sectorData]) => (
+                                <div key={sectorName} className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                                  <div className="flex items-center mb-4">
+                                    <div className={`bg-gradient-to-r ${sectorData.color} p-3 rounded-xl mr-4 shadow-lg`}>
+                                      <span className="text-2xl">{sectorData.icon}</span>
+                                    </div>
+                                    <div>
+                                      <h5 className="text-lg font-bold text-gray-900">{sectorName}</h5>
+                                      <p className="text-sm text-gray-600">
+                                        {Object.keys(sectorData.zones).length} zonas disponibles
+                                      </p>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {Object.entries(sectorData.zones).map(([zoneName, cost]) => {
+                                      const zoneDisplayName = zoneName.split(' > ')[2] || zoneName;
+                                      return (
+                                        <button
+                                          key={zoneName}
+                                          onClick={() => handleZoneSelect(zoneName)}
+                                          className={`p-3 rounded-lg border-2 text-left transition-all duration-300 transform hover:scale-105 ${
+                                            deliveryZone === zoneName
+                                              ? `border-blue-500 bg-gradient-to-r ${sectorData.color} text-white shadow-lg`
+                                              : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <div>
+                                              <p className={`font-semibold text-sm ${
+                                                deliveryZone === zoneName ? 'text-white' : 'text-gray-900'
+                                              }`}>
+                                                {zoneDisplayName}
+                                              </p>
+                                              <p className={`text-xs ${
+                                                deliveryZone === zoneName ? 'text-white/80' : 'text-gray-600'
+                                              }`}>
+                                                {sectorName}
+                                              </p>
+                                            </div>
+                                            <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                              deliveryZone === zoneName 
+                                                ? 'bg-white/20 text-white' 
+                                                : 'bg-green-100 text-green-700'
+                                            }`}>
+                                              ${cost.toLocaleString()} CUP
+                                            </div>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
+                              ))}
+                            </div>
+                          ) : (
+                            /* List View */
+                            <div className="space-y-2">
+                              {Object.entries(filteredZones).flatMap(([sectorName, sectorData]) =>
+                                Object.entries(sectorData.zones).map(([zoneName, cost]) => {
+                                  const zoneDisplayName = zoneName.split(' > ')[2] || zoneName;
+                                  return (
+                                    <button
+                                      key={zoneName}
+                                      onClick={() => handleZoneSelect(zoneName)}
+                                      className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-300 transform hover:scale-[1.01] ${
+                                        deliveryZone === zoneName
+                                          ? `border-blue-500 bg-gradient-to-r ${sectorData.color} text-white shadow-lg`
+                                          : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center">
+                                          <div className={`p-2 rounded-lg mr-4 ${
+                                            deliveryZone === zoneName 
+                                              ? 'bg-white/20' 
+                                              : `bg-gradient-to-r ${sectorData.color}`
+                                          }`}>
+                                            <span className={`text-lg ${
+                                              deliveryZone === zoneName ? 'text-white' : 'text-white'
+                                            }`}>
+                                              {sectorData.icon}
+                                            </span>
+                                          </div>
+                                          <div>
+                                            <p className={`font-semibold ${
+                                              deliveryZone === zoneName ? 'text-white' : 'text-gray-900'
+                                            }`}>
+                                              {zoneDisplayName}
+                                            </p>
+                                            <p className={`text-sm ${
+                                              deliveryZone === zoneName ? 'text-white/80' : 'text-gray-600'
+                                            }`}>
+                                              {sectorName}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className={`px-4 py-2 rounded-full font-bold ${
+                                          deliveryZone === zoneName 
+                                            ? 'bg-white/20 text-white' 
+                                            : 'bg-green-100 text-green-700'
+                                        }`}>
+                                          ${cost.toLocaleString()} CUP
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                })
                               )}
                             </div>
-                            
-                            {!isCalculatingDistance && (distanceInfo.driving || distanceInfo.walking || distanceInfo.bicycling) && (
-                              <div className="space-y-2 ml-6">
-                                {distanceInfo.driving?.status === 'OK' && (
-                                  <div className="flex items-center justify-between text-xs">
-                                    <div className="flex items-center">
-                                      <Car className="h-3 w-3 text-gray-600 mr-2" />
-                                      <span>En automóvil:</span>
-                                    </div>
-                                    <span className="font-medium">{distanceInfo.driving.distance} • {distanceInfo.driving.duration}</span>
-                                  </div>
-                                )}
-                                
-                                {distanceInfo.bicycling?.status === 'OK' && (
-                                  <div className="flex items-center justify-between text-xs">
-                                    <div className="flex items-center">
-                                      <Bike className="h-3 w-3 text-gray-600 mr-2" />
-                                      <span>En bicicleta:</span>
-                                    </div>
-                                    <span className="font-medium">{distanceInfo.bicycling.distance} • {distanceInfo.bicycling.duration}</span>
-                                  </div>
-                                )}
-                                
-                                {distanceInfo.walking?.status === 'OK' && (
-                                  <div className="flex items-center justify-between text-xs">
-                                    <div className="flex items-center">
-                                      <span className="text-gray-600 mr-2">🚶</span>
-                                      <span>Caminando:</span>
-                                    </div>
-                                    <span className="font-medium">{distanceInfo.walking.distance} • {distanceInfo.walking.duration}</span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            
-                            {!isCalculatingDistance && !distanceInfo.driving && !distanceInfo.walking && !distanceInfo.bicycling && (
-                              <p className="text-xs text-gray-500 ml-6">
-                                Ingrese su dirección completa para calcular distancia y tiempo estimado
+                          )}
+                          
+                          {Object.keys(filteredZones).length === 0 && searchTerm && (
+                            <div className="text-center py-8">
+                              <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                No se encontraron zonas
+                              </h3>
+                              <p className="text-gray-600 mb-4">
+                                No hay zonas que coincidan con "{searchTerm}"
                               </p>
-                            )}
+                              <button
+                                onClick={() => setSearchTerm('')}
+                                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                              >
+                                Limpiar búsqueda
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Selected Zone Summary */}
+                        {!isLocalPickup && deliveryZone !== 'Por favor seleccionar su Barrio/Zona' && (
+                          <div className="mt-6 p-4 bg-gradient-to-r from-green-100 to-blue-100 rounded-xl border-2 border-green-300">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <div className="bg-green-500 p-2 rounded-lg mr-3">
+                                  <Check className="h-5 w-5 text-white" />
+                                </div>
+                                <div>
+                                  <p className="font-bold text-green-900">Zona Seleccionada:</p>
+                                  <p className="text-sm text-green-700">
+                                    {deliveryZone.split(' > ')[2]} ({deliveryZone.split(' > ')[1]})
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="bg-green-500 text-white px-4 py-2 rounded-full font-bold">
+                                ${deliveryCost.toLocaleString()} CUP
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {deliveryZone === 'Por favor seleccionar su Barrio/Zona' && (
+                          <div className="mt-4 p-4 bg-orange-50 rounded-xl border border-orange-200">
+                            <div className="flex items-center">
+                              <span className="text-orange-600 mr-2">⚠️</span>
+                              <span className="text-sm font-medium text-orange-700">
+                                Por favor seleccione una opción de entrega para continuar
+                              </span>
+                            </div>
                           </div>
                         )}
                       </div>
