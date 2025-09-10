@@ -1,5 +1,6 @@
 import React from 'react';
 import { DollarSign, Tv, Film, Star, CreditCard } from 'lucide-react';
+import { useAdmin } from '../context/AdminContext';
 
 // PRECIOS EMBEBIDOS - Generados automáticamente
 const EMBEDDED_PRICES = {
@@ -17,10 +18,12 @@ interface PriceCardProps {
 }
 
 export function PriceCard({ type, selectedSeasons = [], episodeCount = 0, isAnime = false }: PriceCardProps) {
-  // Use embedded prices
-  const moviePrice = EMBEDDED_PRICES.moviePrice;
-  const seriesPrice = EMBEDDED_PRICES.seriesPrice;
-  const transferFeePercentage = EMBEDDED_PRICES.transferFeePercentage;
+  const adminContext = useAdmin();
+  
+  // Use admin prices if available, otherwise fallback to embedded prices
+  const moviePrice = adminContext?.state?.prices?.moviePrice || EMBEDDED_PRICES.moviePrice;
+  const seriesPrice = adminContext?.state?.prices?.seriesPrice || EMBEDDED_PRICES.seriesPrice;
+  const transferFeePercentage = adminContext?.state?.prices?.transferFeePercentage || EMBEDDED_PRICES.transferFeePercentage;
   
   const calculatePrice = () => {
     if (type === 'movie') {
@@ -100,13 +103,13 @@ export function PriceCard({ type, selectedSeasons = [], episodeCount = 0, isAnim
             </span>
           </div>
           <div className="text-sm text-orange-600 font-semibold bg-orange-100 px-2 py-1 rounded-full text-center">
-            +${transferFeePercentage}% recargo bancario
+            +{transferFeePercentage}% recargo bancario
           </div>
         </div>
         
         {type === 'tv' && selectedSeasons.length > 0 && (
           <div className="text-sm text-green-600 font-bold text-center bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl p-3 border border-green-200">
-            $${(price / selectedSeasons.length).toLocaleString()} CUP por temporada (efectivo)
+            ${(price / selectedSeasons.length).toLocaleString()} CUP por temporada (efectivo)
           </div>
         )}
       </div>

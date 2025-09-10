@@ -470,8 +470,23 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   // Real-time sync listener
   useEffect(() => {
     const unsubscribe = syncService.subscribe((syncedState) => {
-      if (JSON.stringify(syncedState) !== JSON.stringify(state)) {
+      // Only sync if there are actual changes to prevent infinite loops
+      const hasChanges = JSON.stringify(syncedState.prices) !== JSON.stringify(state.prices) ||
+                         JSON.stringify(syncedState.deliveryZones) !== JSON.stringify(state.deliveryZones) ||
+                         JSON.stringify(syncedState.novels) !== JSON.stringify(state.novels);
+      
+      if (hasChanges) {
         dispatch({ type: 'SYNC_STATE', payload: syncedState });
+        
+        // Broadcast changes to all components
+        window.dispatchEvent(new CustomEvent('admin_data_updated', {
+          detail: {
+            prices: syncedState.prices,
+            deliveryZones: syncedState.deliveryZones,
+            novels: syncedState.novels,
+            timestamp: new Date().toISOString()
+          }
+        }));
       }
     });
     return unsubscribe;
@@ -520,6 +535,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       action: 'update'
     });
     broadcastChange({ type: 'prices', data: prices });
+    
+    // Force update all components that depend on prices
+    window.dispatchEvent(new CustomEvent('prices_updated', {
+      detail: { prices, timestamp: new Date().toISOString() }
+    }));
   };
 
   const addDeliveryZone = (zone: Omit<DeliveryZone, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -532,6 +552,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       action: 'create'
     });
     broadcastChange({ type: 'delivery_zone_add', data: zone });
+    
+    // Force update checkout modal and other components
+    window.dispatchEvent(new CustomEvent('delivery_zones_updated', {
+      detail: { deliveryZones: [...state.deliveryZones, newZone], timestamp: new Date().toISOString() }
+    }));
   };
 
   const updateDeliveryZone = (zone: DeliveryZone) => {
@@ -544,6 +569,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       action: 'update'
     });
     broadcastChange({ type: 'delivery_zone_update', data: zone });
+    
+    // Force update checkout modal and other components
+    window.dispatchEvent(new CustomEvent('delivery_zones_updated', {
+      detail: { deliveryZones: state.deliveryZones.map(z => z.id === zone.id ? zone : z), timestamp: new Date().toISOString() }
+    }));
   };
 
   const deleteDeliveryZone = (id: number) => {
@@ -557,6 +587,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       action: 'delete'
     });
     broadcastChange({ type: 'delivery_zone_delete', data: { id } });
+    
+    // Force update checkout modal and other components
+    window.dispatchEvent(new CustomEvent('delivery_zones_updated', {
+      detail: { deliveryZones: state.deliveryZones.filter(z => z.id !== id), timestamp: new Date().toISOString() }
+    }));
   };
 
   const addNovel = (novel: Omit<Novel, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -569,6 +604,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       action: 'create'
     });
     broadcastChange({ type: 'novel_add', data: novel });
+    
+    // Force update novels modal and other components
+    window.dispatchEvent(new CustomEvent('novels_updated', {
+      detail: { novels: [...state.novels, newNovel], timestamp: new Date().toISOString() }
+    }));
   };
 
   const updateNovel = (novel: Novel) => {
@@ -581,6 +621,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       action: 'update'
     });
     broadcastChange({ type: 'novel_update', data: novel });
+    
+    // Force update novels modal and other components
+    window.dispatchEvent(new CustomEvent('novels_updated', {
+      detail: { novels: state.novels.map(n => n.id === novel.id ? novel : n), timestamp: new Date().toISOString() }
+    }));
   };
 
   const deleteNovel = (id: number) => {
@@ -594,6 +639,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       action: 'delete'
     });
     broadcastChange({ type: 'novel_delete', data: { id } });
+    
+    // Force update novels modal and other components
+    window.dispatchEvent(new CustomEvent('novels_updated', {
+      detail: { novels: state.novels.filter(n => n.id !== id), timestamp: new Date().toISOString() }
+    }));
   };
 
   const addNotification = (notification: Omit<Notification, 'id' | 'timestamp'>) => {
