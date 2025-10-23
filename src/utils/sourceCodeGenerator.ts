@@ -70,15 +70,51 @@ async function generateAllSourceFilesFromReal(
   zip.file('README.md', generateReadme(systemConfig));
 
   // Agregar archivo de configuración JSON para referencia
-  zip.file('config-backup.json', JSON.stringify({
+  const configBackup = {
     version: systemConfig.version,
     exportDate: new Date().toISOString(),
+    exportType: 'FULL_SYSTEM_BACKUP',
     prices: systemConfig.prices,
     deliveryZones: systemConfig.deliveryZones,
     novels: systemConfig.novels,
-    settings: systemConfig.settings,
-    syncStatus: systemConfig.syncStatus
-  }, null, 2));
+    settings: systemConfig.settings || {},
+    syncStatus: systemConfig.syncStatus || {
+      lastSync: new Date().toISOString(),
+      isOnline: true,
+      pendingChanges: 0
+    },
+    metadata: {
+      totalFiles: projectStructure.sourceFiles.length + projectStructure.configFiles.length + projectStructure.publicFiles.length,
+      sourceFiles: projectStructure.sourceFiles.length,
+      configFiles: projectStructure.configFiles.length,
+      publicFiles: projectStructure.publicFiles.length
+    }
+  };
+
+  zip.file('config-backup.json', JSON.stringify(configBackup, null, 2));
+
+  // Agregar manifest del backup
+  const manifest = {
+    name: 'TV a la Carta - Full System Backup',
+    version: systemConfig.version,
+    backupDate: new Date().toISOString(),
+    backupType: 'COMPLETE',
+    description: 'Backup completo del sistema con todos los archivos fuente y configuración embebida',
+    contents: {
+      sourceFiles: projectStructure.sourceFiles.map(f => f.path),
+      configFiles: projectStructure.configFiles.map(f => f.path),
+      publicFiles: projectStructure.publicFiles.map(f => f.path)
+    },
+    configuration: {
+      pricesEmbedded: true,
+      deliveryZonesEmbedded: true,
+      novelsEmbedded: true,
+      totalNovels: systemConfig.novels.length,
+      totalDeliveryZones: systemConfig.deliveryZones.length
+    }
+  };
+
+  zip.file('BACKUP_MANIFEST.json', JSON.stringify(manifest, null, 2));
 }
 
 // Función para generar todos los archivos del sistema
@@ -2877,65 +2913,207 @@ function generateNetlifyRedirects(): string {
 }
 
 function generateReadme(systemConfig: SystemConfig): string {
-  return `# TV a la Carta - Sistema de Gestión
+  const exportDate = new Date();
+  const formattedDate = exportDate.toLocaleString('es-ES', {
+    dateStyle: 'full',
+    timeStyle: 'medium'
+  });
 
-## Descripción
-Sistema completo de gestión para TV a la Carta con panel de administración, carrito de compras y sincronización en tiempo real.
+  const deliveryZonesDetails = systemConfig.deliveryZones
+    .map((zone: any) => `  - ${zone.name}: $${zone.cost} CUP`)
+    .join('\n') || '  - Ninguna configurada';
 
-## Versión
-${systemConfig.version}
+  const novelsDetails = systemConfig.novels
+    .map((novel: any) => `  - ${novel.titulo} (${novel.genero}, ${novel.capitulos} caps, ${novel.año}) - ${novel.pais}`)
+    .join('\n') || '  - Ninguna configurada';
 
-## Última Exportación
-${new Date().toISOString()}
+  return `# TV a la Carta - Sistema de Gestión Completo
 
-## Configuración Actual
+## 📋 Descripción
+Sistema completo de gestión para TV a la Carta con panel de administración, carrito de compras, sincronización en tiempo real y exportación de backup completo con configuración embebida.
 
-### Precios
-- Películas: $${systemConfig.prices.moviePrice} CUP
-- Series: $${systemConfig.prices.seriesPrice} CUP por temporada
-- Recargo transferencia: ${systemConfig.prices.transferFeePercentage}%
-- Novelas: $${systemConfig.prices.novelPricePerChapter} CUP por capítulo
+## 🔖 Información del Backup
 
-### Zonas de Entrega
-Total configuradas: ${systemConfig.deliveryZones.length}
+**Versión del Sistema:** ${systemConfig.version}
+**Fecha de Exportación:** ${formattedDate}
+**Tipo de Backup:** Full System Backup con Configuración Embebida
+**Estado de Sincronización:** ${systemConfig.syncStatus?.isOnline ? 'En Línea ✅' : 'Desconectado ⚠️'}
 
-### Novelas Administradas
-Total: ${systemConfig.novels.length}
+---
 
-## Características
-- ✅ Panel de administración completo
-- ✅ Sincronización en tiempo real
-- ✅ Gestión de precios dinámicos
-- ✅ Zonas de entrega personalizables
-- ✅ Catálogo de novelas administrable
-- ✅ Sistema de notificaciones
-- ✅ Exportación/Importación de configuración
-- ✅ Optimización de rendimiento
-- ✅ Carrito de compras avanzado
-- ✅ Integración con WhatsApp
+## ⚙️ Configuración Actual Embebida
 
-## Instalación
+Este backup contiene TODOS los archivos del sistema con la configuración actual aplicada directamente en el código fuente. Los archivos han sido procesados para incluir:
+
+### 💰 Precios Configurados
+- **Películas:** $${systemConfig.prices.moviePrice} CUP
+- **Series:** $${systemConfig.prices.seriesPrice} CUP por temporada
+- **Novelas:** $${systemConfig.prices.novelPricePerChapter} CUP por capítulo
+- **Recargo por Transferencia:** ${systemConfig.prices.transferFeePercentage}%
+
+### 📍 Zonas de Entrega (${systemConfig.deliveryZones.length} configuradas)
+${deliveryZonesDetails}
+
+### 📚 Catálogo de Novelas (${systemConfig.novels.length} administradas)
+${novelsDetails.substring(0, 1000)}${novelsDetails.length > 1000 ? '\n  ... (ver config-backup.json para lista completa)' : ''}
+
+---
+
+## 📁 Estructura del Proyecto
+
+Este backup incluye:
+
+### Archivos de Código Fuente
+- ✅ Todos los componentes React (src/components/)
+- ✅ Todas las páginas (src/pages/)
+- ✅ Contextos con configuración embebida (src/context/)
+- ✅ Servicios y utilidades (src/services/, src/utils/)
+- ✅ Hooks personalizados (src/hooks/)
+- ✅ Tipos de TypeScript (src/types/)
+
+### Archivos de Configuración
+- ✅ package.json con versión actualizada
+- ✅ Configuraciones de Vite, TypeScript, Tailwind
+- ✅ Configuraciones de ESLint y PostCSS
+- ✅ index.html y vercel.json
+
+### Archivos Adicionales
+- ✅ config-backup.json: Configuración completa en formato JSON
+- ✅ README.md: Este archivo de documentación
+- ✅ .env: Variables de entorno (si configuradas)
+
+---
+
+## 🚀 Instalación y Despliegue
+
+### Requisitos Previos
+- Node.js 18+
+- npm o yarn
+
+### Pasos para Instalar
+
+1. **Extraer el archivo ZIP**
+   \`\`\`bash
+   unzip TV_a_la_Carta_Sistema_Completo_*.zip
+   cd TV_a_la_Carta_Sistema_Completo
+   \`\`\`
+
+2. **Instalar dependencias**
+   \`\`\`bash
+   npm install
+   \`\`\`
+
+3. **Ejecutar en desarrollo**
+   \`\`\`bash
+   npm run dev
+   \`\`\`
+
+4. **Construir para producción**
+   \`\`\`bash
+   npm run build
+   npm run preview
+   \`\`\`
+
+### Despliegue en Vercel
+
 \`\`\`bash
-npm install
-npm run dev
+npm install -g vercel
+vercel --prod
 \`\`\`
 
-## Uso del Panel de Administración
-1. Acceder a /admin
-2. Usuario: admin
-3. Contraseña: tvalacarta2024
+---
 
-## Tecnologías
-- React 18
-- TypeScript
-- Tailwind CSS
-- Vite
-- React Router
-- Lucide Icons
-- JSZip
+## 🔐 Acceso al Panel de Administración
 
-## Contacto
-WhatsApp: +5354690878`;
+**URL:** \`/admin\`
+**Usuario:** \`admin\`
+**Contraseña:** \`tvalacarta2024\`
+
+**Importante:** Cambia las credenciales en src/context/AdminContext.tsx después de la instalación.
+
+---
+
+## ✨ Características del Sistema
+
+### Panel de Administración
+- ✅ Gestión completa de novelas (CRUD)
+- ✅ Administración de zonas de entrega
+- ✅ Configuración dinámica de precios
+- ✅ Sistema de notificaciones en tiempo real
+- ✅ Exportación/Importación de configuración
+- ✅ **Backup Full con código fuente completo**
+- ✅ Sincronización automática de cambios
+- ✅ Estadísticas y métricas del sistema
+
+### Funcionalidades del Usuario
+- ✅ Catálogo de películas, series y anime (API TMDB)
+- ✅ Carrito de compras avanzado
+- ✅ Gestión de novelas con precios por capítulo
+- ✅ Integración con WhatsApp para pedidos
+- ✅ Cálculo automático de costos de entrega
+- ✅ Opciones de pago (efectivo y transferencia)
+- ✅ Recogida en local disponible
+- ✅ Búsqueda y filtrado de contenido
+
+### Optimizaciones
+- ✅ Carga lazy de imágenes
+- ✅ Optimización de rendimiento
+- ✅ Manejo avanzado de errores
+- ✅ Caché inteligente
+- ✅ Responsive design completo
+
+---
+
+## 🛠️ Tecnologías Utilizadas
+
+- **React 18.3** - Framework principal
+- **TypeScript 5.5** - Tipado estático
+- **Vite 5.4** - Build tool y dev server
+- **Tailwind CSS 3.4** - Framework de estilos
+- **React Router 7.8** - Navegación
+- **Lucide React 0.344** - Iconografía
+- **JSZip 3.10** - Generación de backups
+- **TMDB API** - Datos de películas y series
+
+---
+
+## 📞 Información de Contacto
+
+**WhatsApp:** +5354690878
+**Soporte:** Disponible en horario comercial
+**Sistema:** TV a la Carta - Gestión Integral
+
+---
+
+## 📝 Notas Importantes
+
+1. **Configuración Embebida:** Este backup contiene la configuración actual aplicada directamente en el código fuente. No necesitas importar archivos de configuración adicionales.
+
+2. **Variables de Entorno:** Si el proyecto usa API keys de TMDB, asegúrate de configurar tu propia clave en src/config/api.ts
+
+3. **Actualización de Configuración:** Puedes actualizar la configuración desde el panel de administración y exportar un nuevo backup cuando lo necesites.
+
+4. **Sincronización:** El sistema guarda automáticamente los cambios en localStorage. Para persistencia permanente, considera integrar una base de datos.
+
+5. **Seguridad:** Cambia las credenciales de admin antes de desplegar en producción.
+
+---
+
+## 🔄 Restauración de Configuración
+
+Para restaurar la configuración desde el archivo \`config-backup.json\`:
+
+1. Accede al panel de administración (/admin)
+2. Ve a la sección "Sistema"
+3. Haz clic en "Importar Configuración"
+4. Pega el contenido de \`config-backup.json\`
+5. Confirma la importación
+
+---
+
+**Backup generado automáticamente por TV a la Carta - Sistema de Gestión v${systemConfig.version}**
+**Desarrollado con ❤️ para gestión eficiente de contenido multimedia**
+`;
 }
 
 function generateMainTsx(): string {
