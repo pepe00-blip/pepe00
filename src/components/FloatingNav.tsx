@@ -1,72 +1,70 @@
 import React, { useState } from 'react';
 import { Menu, X, Flame, Clapperboard, Monitor, Sparkles, Radio, CheckCircle2 } from 'lucide-react';
 
-export function FloatingNav() {
-  const [isOpen, setIsOpen] = useState(false);
+interface FloatingNavProps {
+  sections: Array<{
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+  }>;
+}
 
-  const sections = [
-    { id: 'trending', label: 'Tendencias', icon: Flame, color: 'red' },
-    { id: 'novels-live', label: 'Novelas en Vivo', icon: Radio, color: 'red' },
-    { id: 'novels-finished', label: 'Novelas Completas', icon: CheckCircle2, color: 'green' },
-    { id: 'movies', label: 'Películas', icon: Clapperboard, color: 'blue' },
-    { id: 'tv-shows', label: 'Series', icon: Monitor, color: 'purple' },
-    { id: 'anime', label: 'Anime', icon: Sparkles, color: 'pink' },
-  ];
+export function FloatingNav({ sections }: FloatingNavProps) {
+  const [isOpen, setIsOpen] = useState(false);
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
-      const yOffset = -80;
-      const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
-      window.scrollTo({ top: y, behavior: 'smooth' });
-    }
-    setIsOpen(false);
-  };
+      const offset = 80;
+      const elementPosition = element.getBoundingClientRect().top + window.pageYOffset;
+      const offsetPosition = elementPosition - offset;
 
-  const getColorClasses = (color: string) => {
-    const colors: { [key: string]: string } = {
-      red: 'text-red-600 bg-red-50 hover:bg-red-100',
-      green: 'text-green-600 bg-green-50 hover:bg-green-100',
-      blue: 'text-blue-600 bg-blue-50 hover:bg-blue-100',
-      purple: 'text-purple-600 bg-purple-50 hover:bg-purple-100',
-      pink: 'text-pink-600 bg-pink-50 hover:bg-pink-100',
-    };
-    return colors[color] || 'text-gray-600 bg-gray-50 hover:bg-gray-100';
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+      setIsOpen(false);
+    }
   };
 
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-50">
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-xl transition-all duration-300 transform hover:scale-110 flex items-center justify-center"
-        >
-          {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
-      </div>
+      {/* Floating Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white p-4 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-110"
+        aria-label="Toggle navigation menu"
+      >
+        {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+      </button>
 
+      {/* Navigation Menu */}
       {isOpen && (
         <>
+          {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-black/50 z-30 backdrop-blur-sm animate-in fade-in duration-200"
             onClick={() => setIsOpen(false)}
           />
-          <div className="fixed bottom-24 right-6 z-50 bg-white rounded-2xl shadow-2xl p-4 w-64 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 px-2">Ir a sección</h3>
-            <div className="space-y-2">
-              {sections.map((section) => {
-                const Icon = section.icon;
-                return (
-                  <button
-                    key={section.id}
-                    onClick={() => scrollToSection(section.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${getColorClasses(section.color)}`}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className="font-medium text-sm">{section.label}</span>
-                  </button>
-                );
-              })}
+
+          {/* Menu Panel */}
+          <div className="fixed bottom-24 right-6 z-40 bg-white rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-5 duration-300 w-64">
+            <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-4">
+              <h3 className="text-white font-bold text-lg">Navegar a</h3>
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {sections.map((section) => (
+                <button
+                  key={section.id}
+                  onClick={() => scrollToSection(section.id)}
+                  className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors flex items-center border-b border-gray-100 last:border-b-0"
+                >
+                  <div className="mr-3 text-blue-500">
+                    {section.icon}
+                  </div>
+                  <span className="text-gray-800 font-medium">{section.label}</span>
+                </button>
+              ))}
             </div>
           </div>
         </>

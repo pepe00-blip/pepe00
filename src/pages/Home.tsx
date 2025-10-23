@@ -9,9 +9,9 @@ import { HeroCarousel } from '../components/HeroCarousel';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { NovelasModal } from '../components/NovelasModal';
-import { NetflixCarousel } from '../components/NetflixCarousel';
+import { NetflixSection } from '../components/NetflixSection';
+import { NetflixNovelSection } from '../components/NetflixNovelSection';
 import { FloatingNav } from '../components/FloatingNav';
-import { NovelCard } from '../components/NovelCard';
 import type { Movie, TVShow } from '../types/movie';
 
 type TrendingTimeWindow = 'day' | 'week';
@@ -55,42 +55,24 @@ export function Home() {
   
   const getNovelTrendingContent = (timeWindow: TrendingTimeWindow): any[] => {
     const novels = adminState.novels || [];
-    
+
     if (timeWindow === 'day') {
-      // Show novels currently airing
       return novels.filter(novel => novel.estado === 'transmision').slice(0, 12);
     } else {
-      // Show recently finished novels
       return novels.filter(novel => novel.estado === 'finalizada').slice(0, 10);
     }
   };
 
-  const getCountryFlag = (country: string) => {
-    const flags: { [key: string]: string } = {
-      'Turquía': '🇹🇷',
-      'Cuba': '🇨🇺',
-      'México': '🇲🇽',
-      'Brasil': '🇧🇷',
-      'Colombia': '🇨🇴',
-      'Argentina': '🇦🇷',
-      'España': '🇪🇸',
-      'Estados Unidos': '🇺🇸',
-      'Corea del Sur': '🇰🇷',
-      'India': '🇮🇳',
-      'Reino Unido': '🇬🇧',
-      'Francia': '🇫🇷',
-      'Italia': '🇮🇹',
-      'Alemania': '🇩🇪',
-      'Japón': '🇯🇵',
-      'China': '🇨🇳',
-      'Rusia': '🇷🇺'
-    };
-    return flags[country] || '🌍';
-  };
   const fetchAllContent = async () => {
     try {
       setLoading(true);
-      
+
+      // Clear hero content cache to ensure fresh Spanish content
+      const heroKeys = Object.keys(localStorage).filter(key =>
+        key.includes('trending') || key.includes('fresh_')
+      );
+      heroKeys.forEach(key => localStorage.removeItem(key));
+
       // Get hero content first (no duplicates)
       const heroContent = await tmdbService.getHeroContent();
       setHeroItems(heroContent);
@@ -245,13 +227,13 @@ export function Home() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Trending Content */}
-        <section className="mb-12" id="trending">
+        <section id="section-trending" className="mb-12">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 space-y-4 sm:space-y-0">
             <h2 className="text-2xl font-bold text-gray-900 flex items-center">
               <Flame className="mr-2 h-6 w-6 text-red-500" />
               En Tendencia
             </h2>
-
+            
             {/* Trending Filter */}
             <div className="flex items-center space-x-1 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
               <Filter className="h-4 w-4 text-gray-500 ml-2" />
@@ -272,62 +254,56 @@ export function Home() {
               ))}
             </div>
           </div>
-
-          {/* Movies and TV Shows */}
-          <NetflixCarousel itemsPerView={5}>
+          
+          {/* Movies and TV Shows with Netflix-style carousel */}
+          <NetflixSection
+            title=""
+            showViewAll={false}
+          >
             {trendingContent.map((item) => {
               const itemType = 'title' in item ? 'movie' : 'tv';
               return (
-                <MovieCard key={`trending-${itemType}-${item.id}`} item={item} type={itemType} />
+                <div key={`trending-${itemType}-${item.id}`} className="flex-shrink-0 w-64">
+                  <MovieCard item={item} type={itemType} />
+                </div>
               );
             })}
-          </NetflixCarousel>
-
+          </NetflixSection>
+          
         </section>
 
-        {/* Sección Dedicada: Novelas en Transmisión */}
-        <section className="mb-12" id="novels-live">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-              <div className="bg-gradient-to-r from-red-500 to-pink-500 p-2 rounded-xl mr-3 shadow-lg">
-                <Radio className="h-5 w-5 text-white" />
-              </div>
-              Novelas en Transmisión
-            </h2>
-            <button
-              onClick={() => setShowNovelasModal(true)}
-              className="text-pink-600 hover:text-pink-800 flex items-center font-medium"
-            >
-              Ver catálogo completo
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </button>
-          </div>
+        {/* Sección Dedicada: Novelas en Transmisión - Estilo Netflix */}
+        <section id="section-novelas-transmision" className="mb-12">
 
           {adminState.novels && adminState.novels.length > 0 ? (
             <>
               {adminState.novels.filter(novel => novel.estado === 'transmision').length > 0 ? (
-                <>
-                  <NetflixCarousel itemsPerView={5}>
-                    {adminState.novels
-                      .filter(novel => novel.estado === 'transmision')
-                      .slice(0, 10)
-                      .map((novel) => (
-                        <NovelCard key={`novel-live-${novel.id}`} novel={novel} />
-                      ))}
-                  </NetflixCarousel>
-                  <div className="text-center mt-8">
+                <div>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                      <div className="bg-gradient-to-r from-red-500 to-pink-500 p-2 rounded-xl shadow-lg mr-3">
+                        <Radio className="h-5 w-5 text-white" />
+                      </div>
+                      Novelas en Transmisión
+                    </h2>
                     <button
                       onClick={() => setShowNovelasModal(true)}
-                      className="bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 flex items-center mx-auto"
+                      className="text-red-600 hover:text-red-700 font-medium flex items-center transition-colors"
                     >
-                      <Library className="mr-2 h-5 w-5" />
-                      Ver Todas las Novelas en Transmisión
+                      Ver todas
+                      <ChevronRight className="h-5 w-5 ml-1" />
                     </button>
-                    <p className="text-sm text-gray-600 mt-3 max-w-md mx-auto">
-                      {adminState.novels.filter(novel => novel.estado === 'transmision').length} novelas actualmente en transmisión
-                    </p>
                   </div>
-                </>
+                  <NetflixNovelSection
+                    novels={adminState.novels
+                      .filter(novel => novel.estado === 'transmision')
+                      .sort((a, b) => {
+                        const dateA = new Date(a.createdAt || 0).getTime();
+                        const dateB = new Date(b.createdAt || 0).getTime();
+                        return dateB - dateA;
+                      })}
+                  />
+                </div>
               ) : (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
                   <div className="bg-red-100 p-4 rounded-full w-fit mx-auto mb-4">
@@ -363,49 +339,38 @@ export function Home() {
           )}
         </section>
 
-        {/* Sección Dedicada: Novelas Finalizadas */}
-        <section className="mb-12" id="novels-finished">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-              <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-2 rounded-xl mr-3 shadow-lg">
-                <CheckCircle2 className="h-5 w-5 text-white" />
-              </div>
-              Novelas Finalizadas
-            </h2>
-            <button
-              onClick={() => setShowNovelasModal(true)}
-              className="text-green-600 hover:text-green-800 flex items-center font-medium"
-            >
-              Ver catálogo completo
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </button>
-          </div>
+        {/* Sección Dedicada: Novelas Finalizadas - Estilo Netflix */}
+        <section id="section-novelas-finalizadas" className="mb-12">
 
           {adminState.novels && adminState.novels.length > 0 ? (
             <>
               {adminState.novels.filter(novel => novel.estado === 'finalizada').length > 0 ? (
-                <>
-                  <NetflixCarousel itemsPerView={5}>
-                    {adminState.novels
-                      .filter(novel => novel.estado === 'finalizada')
-                      .slice(0, 10)
-                      .map((novel) => (
-                        <NovelCard key={`novel-finished-${novel.id}`} novel={novel} />
-                      ))}
-                  </NetflixCarousel>
-                  <div className="text-center mt-8">
+                <div>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                      <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-2 rounded-xl shadow-lg mr-3">
+                        <CheckCircle2 className="h-5 w-5 text-white" />
+                      </div>
+                      Novelas Finalizadas
+                    </h2>
                     <button
                       onClick={() => setShowNovelasModal(true)}
-                      className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 flex items-center mx-auto"
+                      className="text-green-600 hover:text-green-700 font-medium flex items-center transition-colors"
                     >
-                      <Library className="mr-2 h-5 w-5" />
-                      Ver Todas las Novelas Finalizadas
+                      Ver todas
+                      <ChevronRight className="h-5 w-5 ml-1" />
                     </button>
-                    <p className="text-sm text-gray-600 mt-3 max-w-md mx-auto">
-                      {adminState.novels.filter(novel => novel.estado === 'finalizada').length} novelas finalizadas
-                    </p>
                   </div>
-                </>
+                  <NetflixNovelSection
+                    novels={adminState.novels
+                      .filter(novel => novel.estado === 'finalizada')
+                      .sort((a, b) => {
+                        const dateA = new Date(a.createdAt || 0).getTime();
+                        const dateB = new Date(b.createdAt || 0).getTime();
+                        return dateB - dateA;
+                      })}
+                  />
+                </div>
               ) : (
                 <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center">
                   <div className="bg-green-100 p-4 rounded-full w-fit mx-auto mb-4">
@@ -442,69 +407,51 @@ export function Home() {
         </section>
 
         {/* Popular Movies */}
-        <section className="mb-12" id="movies">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-              <Clapperboard className="mr-2 h-6 w-6 text-blue-500" />
-              Películas Destacadas
-            </h2>
-            <Link
-              to="/movies"
-              className="text-blue-600 hover:text-blue-800 flex items-center font-medium"
-            >
-              Ver todas
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Link>
-          </div>
-          <NetflixCarousel itemsPerView={5}>
+        <section id="section-peliculas" className="mb-12">
+          <NetflixSection
+            title="Películas Destacadas"
+            icon={<Clapperboard className="h-6 w-6 text-blue-500" />}
+            showViewAll={true}
+            onViewAllClick={() => window.location.href = '/movies'}
+          >
             {popularMovies.map((movie) => (
-              <MovieCard key={movie.id} item={movie} type="movie" />
+              <div key={movie.id} className="flex-shrink-0 w-64">
+                <MovieCard item={movie} type="movie" />
+              </div>
             ))}
-          </NetflixCarousel>
+          </NetflixSection>
         </section>
 
         {/* Popular TV Shows */}
-        <section className="mb-12" id="tv-shows">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-              <Monitor className="mr-2 h-6 w-6 text-purple-500" />
-              Series Destacadas
-            </h2>
-            <Link
-              to="/tv"
-              className="text-blue-600 hover:text-blue-800 flex items-center font-medium"
-            >
-              Ver todas
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Link>
-          </div>
-          <NetflixCarousel itemsPerView={5}>
+        <section id="section-series" className="mb-12">
+          <NetflixSection
+            title="Series Destacadas"
+            icon={<Monitor className="h-6 w-6 text-purple-500" />}
+            showViewAll={true}
+            onViewAllClick={() => window.location.href = '/tv'}
+          >
             {popularTVShows.map((show) => (
-              <MovieCard key={show.id} item={show} type="tv" />
+              <div key={show.id} className="flex-shrink-0 w-64">
+                <MovieCard item={show} type="tv" />
+              </div>
             ))}
-          </NetflixCarousel>
+          </NetflixSection>
         </section>
 
         {/* Popular Anime */}
-        <section className="mb-12" id="anime">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-              <Sparkles className="mr-2 h-6 w-6 text-pink-500" />
-              Anime Destacado
-            </h2>
-            <Link
-              to="/anime"
-              className="text-blue-600 hover:text-blue-800 flex items-center font-medium"
-            >
-              Ver todos
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Link>
-          </div>
-          <NetflixCarousel itemsPerView={5}>
+        <section id="section-anime" className="mb-12">
+          <NetflixSection
+            title="Anime Destacado"
+            icon={<Sparkles className="h-6 w-6 text-pink-500" />}
+            showViewAll={true}
+            onViewAllClick={() => window.location.href = '/anime'}
+          >
             {popularAnime.map((anime) => (
-              <MovieCard key={anime.id} item={anime} type="tv" />
+              <div key={anime.id} className="flex-shrink-0 w-64">
+                <MovieCard item={anime} type="tv" />
+              </div>
             ))}
-          </NetflixCarousel>
+          </NetflixSection>
         </section>
 
         {/* Last Update Info (Hidden from users) */}
@@ -520,7 +467,16 @@ export function Home() {
       />
 
       {/* Floating Navigation */}
-      <FloatingNav />
+      <FloatingNav
+        sections={[
+          { id: 'section-trending', label: 'En Tendencia', icon: <Flame className="h-5 w-5" /> },
+          { id: 'section-novelas-transmision', label: 'Novelas en Transmisión', icon: <Radio className="h-5 w-5" /> },
+          { id: 'section-novelas-finalizadas', label: 'Novelas Finalizadas', icon: <CheckCircle2 className="h-5 w-5" /> },
+          { id: 'section-peliculas', label: 'Películas Destacadas', icon: <Clapperboard className="h-5 w-5" /> },
+          { id: 'section-series', label: 'Series Destacadas', icon: <Monitor className="h-5 w-5" /> },
+          { id: 'section-anime', label: 'Anime Destacado', icon: <Sparkles className="h-5 w-5" /> },
+        ]}
+      />
     </div>
   );
 }
