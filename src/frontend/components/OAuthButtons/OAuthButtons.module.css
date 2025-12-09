@@ -1,0 +1,101 @@
+.oauthContainer {
+  margin: 1.5rem 0;
+}
+
+.divider {
+  position: relative;
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--grey-300);
+}
+
+.divider span {
+  background: var(--white);
+  padding: 0 1rem;
+  color: var(--grey-500);
+  font-size: 0.875rem;
+  letter-spacing: var(--letterSpacing);
+}
+
+.oauthButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.oauthBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--grey-200);
+  border-radius: var(--borderRadius);
+  background: var(--white);
+  color: var(--grey-700);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: var(--letterSpacing);
+  cursor: pointer;
+  transition: var(--transition);
+  width: 100%;
+}
+
+.oauthBtn:hover:not(:disabled) {
+  border-color: var(--grey-300);
+  box-shadow: var(--shadow-2);
+}
+
+.oauthBtn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.oauthBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.googleBtn:hover:not(:disabled) {
+  border-color: #db4437;
+  color: #db4437;
+}
+
+.microsoftBtn:hover:not(:disabled) {
+  border-color: #0078d4;
+  color: #0078d4;
+}
+
+.yahooBtn:hover:not(:disabled) {
+  border-color: #720e9e;
+  color: #720e9e;
+}
+
+.oauthBtn svg {
+  font-size: 1.25rem;
+}
+
+@media screen and (min-width: 768px) {
+  .oauthButtons {
+    flex-direction: row;
+    gap: 1rem;
+  }
+  
+  .oauthBtn {
+    flex: 1;
+    font-size: 1rem;
+    padding: 1rem;
+  }
+  
+  .oauthBtn svg {
+    font-size: 1.5rem;
+  }
+}
