@@ -5,15 +5,11 @@ import {
   PasswordRow,
   Title,
 } from '../components';
-import OAuthButtons from '../components/OAuthButtons/OAuthButtons';
 import { useFormInput, useNavigateIfRegistered } from '../hooks';
 import { toastHandler } from '../utils/utils';
 import { ToastType } from '../constants/constants';
 import { useState } from 'react';
 import { signupService } from '../Services/services';
-import { signUpWithEmail } from '../Services/authService';
-import { setIntoLocalStorage } from '../utils/utils';
-import { LOCAL_STORAGE_KEYS } from '../constants/constants';
 import { useAuthContext } from '../contexts/AuthContextProvider';
 
 const SignupPage = () => {
@@ -54,47 +50,24 @@ const SignupPage = () => {
     setIsSignupFormLoading(true);
 
     try {
-      // Try Firebase authentication first
-      const { user, token } = await signUpWithEmail(
-        email.trim(),
+      const { user, token } = await signupService({
+        email: email.trim(),
         password,
-        firstName.trim(),
-        lastName.trim()
-      );
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      });
 
       // update AuthContext with data
       updateUserAuth({ user, token });
-
-      // store this data in localStorage
-      setIntoLocalStorage(LOCAL_STORAGE_KEYS.User, user);
-      setIntoLocalStorage(LOCAL_STORAGE_KEYS.Token, token);
 
       // show success toast
       toastHandler(ToastType.Success, `Sign up successful`);
 
       // if user directly comes to '/signup' from url, so state will be null, after successful registration, user should be directed to home page
       navigate(signupPageLocation?.state?.from ?? '/');
-    } catch (firebaseError) {
-      // If Firebase fails, try the mock API as fallback
-      try {
-        const { user, token } = await signupService({
-          email: email.trim(),
-          password,
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-        });
-
-        // update AuthContext with data
-        updateUserAuth({ user, token });
-
-        // show success toast
-        toastHandler(ToastType.Success, `Sign up successful`);
-
-        navigate(signupPageLocation?.state?.from ?? '/');
-      } catch (error) {
-        toastHandler(ToastType.Error, error.response?.data?.errors?.[0] || 'Error creating account');
-        console.error(error.response);
-      }
+    } catch (error) {
+      const errorText = error?.response?.data?.errors?.[0] || 'Signup failed. Please try again.';
+      toastHandler(ToastType.Error, errorText);
     }
 
     setIsSignupFormLoading(false);
@@ -169,8 +142,6 @@ const SignupPage = () => {
           )}
         </button>
       </form>
-
-      <OAuthButtons />
 
       <div>
         <span>

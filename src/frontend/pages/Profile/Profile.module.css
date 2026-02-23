@@ -3,24 +3,9 @@
   padding-top: 1rem;
 }
 
-.profileImage {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1.5rem;
-}
-
-.profileImage img {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid var(--primary-500);
-}
-
 .row {
   font-size: 0.85rem;
   color: var(--grey-600);
-  text-transform: capitalize;
 }
 
 .row span {
@@ -42,10 +27,5 @@
   .profile {
     padding: 2rem;
     padding-top: 1rem;
-  }
-  
-  .profileImage img {
-    width: 100px;
-    height: 100px;
   }
 }

@@ -5,7 +5,6 @@ import {
   PasswordRow,
   Title,
 } from '../components';
-import OAuthButtons from '../components/OAuthButtons/OAuthButtons';
 import {
   TEST_USER,
   ToastType,
@@ -14,7 +13,6 @@ import {
 } from '../constants/constants';
 import { useState } from 'react';
 import { loginUserService } from '../Services/services';
-import { signInWithEmail } from '../Services/authService';
 import { setIntoLocalStorage, toastHandler } from '../utils/utils';
 
 import { useAuthContext } from '../contexts/AuthContextProvider';
@@ -43,74 +41,34 @@ const LoginPage = () => {
     e.preventDefault();
 
     const isGuestClick = clickType === LOGIN_CLICK_TYPE.GuestClick;
+    const userInfo = isGuestClick ? TEST_USER : userInputs;
 
     setActiveBtnLoader(clickType);
 
     if (isGuestClick) {
       setUserInputs(TEST_USER);
-      // Use the existing mock API for guest login
-      try {
-        const { user, token } = await loginUserService(TEST_USER);
-        
-        // update AuthContext with data
-        updateUserAuth({ user, token });
-        
-        // store this data in localStorage
-        setIntoLocalStorage(LOCAL_STORAGE_KEYS.User, user);
-        setIntoLocalStorage(LOCAL_STORAGE_KEYS.Token, token);
-        
-        // show success toast
-        toastHandler(
-          ToastType.Success,
-          `Welcome ${user.firstName} ${user.lastName} 😎`
-        );
-        // if non-registered user comes from typing '/login' at the url, after success redirect it to '/'
-        navigate(locationOfLogin?.state?.from ?? '/');
-      } catch ({ response }) {
-        const errorText = response?.data?.errors[0].split('.')[0];
-        toastHandler(ToastType.Error, errorText);
-      }
-    } else {
-      // Try Firebase authentication first for regular login
-      try {
-        const { user, token } = await signInWithEmail(userInputs.email, userInputs.password);
-        
-        // update AuthContext with data
-        updateUserAuth({ user, token });
-        
-        // store this data in localStorage
-        setIntoLocalStorage(LOCAL_STORAGE_KEYS.User, user);
-        setIntoLocalStorage(LOCAL_STORAGE_KEYS.Token, token);
-        
-        // show success toast
-        toastHandler(
-          ToastType.Success,
-          `Welcome ${user.firstName} ${user.lastName} 😎`
-        );
-        navigate(locationOfLogin?.state?.from ?? '/');
-      } catch (firebaseError) {
-        // If Firebase fails, try the mock API as fallback
-        try {
-          const { user, token } = await loginUserService(userInputs);
-          
-          // update AuthContext with data
-          updateUserAuth({ user, token });
-          
-          // store this data in localStorage
-          setIntoLocalStorage(LOCAL_STORAGE_KEYS.User, user);
-          setIntoLocalStorage(LOCAL_STORAGE_KEYS.Token, token);
-          
-          // show success toast
-          toastHandler(
-            ToastType.Success,
-            `Welcome ${user.firstName} ${user.lastName} 😎`
-          );
-          navigate(locationOfLogin?.state?.from ?? '/');
-        } catch ({ response }) {
-          const errorText = response?.data?.errors[0].split('.')[0];
-          toastHandler(ToastType.Error, errorText);
-        }
-      }
+    }
+
+    try {
+      const { user, token } = await loginUserService(userInfo);
+
+      // update AuthContext with data
+      updateUserAuth({ user, token });
+
+      // store this data in localStorage
+      setIntoLocalStorage(LOCAL_STORAGE_KEYS.User, user);
+      setIntoLocalStorage(LOCAL_STORAGE_KEYS.Token, token);
+
+      // show success toast
+      toastHandler(
+        ToastType.Success,
+        `Welcome ${user.firstName} ${user.lastName} 😎`
+      );
+      // if non-registered user comes from typing '/login' at the url, after success redirect it to '/'
+      navigate(locationOfLogin?.state?.from ?? '/');
+    } catch ({ response }) {
+      const errorText = response?.data?.errors?.[0]?.split?.('.')?.[0] || 'Login failed. Please try again.';
+      toastHandler(ToastType.Error, errorText);
     }
 
     setActiveBtnLoader('');
@@ -171,8 +129,6 @@ const LoginPage = () => {
           )}
         </button>
       </form>
-
-      <OAuthButtons />
 
       {/*
         * user journey

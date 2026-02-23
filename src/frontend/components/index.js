@@ -22,7 +22,6 @@ import CheckoutDetails from './CheckoutDetails/CheckoutDetails';
 import Modal from './Modal/Modal';
 import Error from './Error/Error';
 import Loader from './Loader';
-import OAuthButtons from './OAuthButtons/OAuthButtons';
 
 export {
   Navbar,
@@ -49,5 +48,4 @@ export {
   Modal,
   Error,
   Loader,
-  OAuthButtons,
 };
