@@ -67,7 +67,20 @@ const LoginPage = () => {
       // if non-registered user comes from typing '/login' at the url, after success redirect it to '/'
       navigate(locationOfLogin?.state?.from ?? '/');
     } catch ({ response }) {
-      const errorText = response?.data?.errors?.[0]?.split?.('.')?.[0] || 'Login failed. Please try again.';
+      let errorText = 'Login failed. Please try again.';
+
+      if (response?.data?.errors?.[0]) {
+        const errorMessage = response.data.errors[0];
+
+        if (errorMessage.includes('not Registered')) {
+          errorText = 'Email not registered. Please sign up first.';
+        } else if (errorMessage.includes('invalid')) {
+          errorText = 'Invalid email or password.';
+        } else {
+          errorText = errorMessage.split('.')[0];
+        }
+      }
+
       toastHandler(ToastType.Error, errorText);
     }
 

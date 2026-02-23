@@ -66,7 +66,18 @@ const SignupPage = () => {
       // if user directly comes to '/signup' from url, so state will be null, after successful registration, user should be directed to home page
       navigate(signupPageLocation?.state?.from ?? '/');
     } catch (error) {
-      const errorText = error?.response?.data?.errors?.[0] || 'Signup failed. Please try again.';
+      let errorText = 'Signup failed. Please try again.';
+
+      if (error?.response?.data?.errors?.[0]) {
+        const errorMessage = error.response.data.errors[0];
+
+        if (errorMessage.includes('Email Already Exists')) {
+          errorText = 'This email is already registered. Please login instead.';
+        } else {
+          errorText = errorMessage.split('.')[0];
+        }
+      }
+
       toastHandler(ToastType.Error, errorText);
     }
 
